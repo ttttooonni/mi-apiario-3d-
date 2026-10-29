@@ -123,6 +123,7 @@ export default function App() {
     const entry: LogEntry = {id:makeId('LOG'),hiveId:selected.id,date:logDate,kind:logKind,detail:logDetail.trim()};
     setData(prev=>({...prev,logs:[entry,...prev.logs],hives:prev.hives.map(h=>h.id===selected.id?{...h,lastReview:logKind==='Revisión'?logDate:h.lastReview}:h)}));
     setLogDetail(''); setTab('Revisiones');
+    if (tutorialStep === 2) setTutorialStep(3);
   };
   const addTask = (event: React.FormEvent) => {
     event.preventDefault(); if (!selected || !taskTitle.trim()) return;
@@ -184,7 +185,7 @@ export default function App() {
 
     {tab==='Resumen' && <>
       <section className="workspace">
-        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={id=>{setSelectedId(id);setShowHiveModal(true)}} onFrameInspect={(hiveId,frameIndex)=>{const date=today();const entry:LogEntry={id:makeId('LOG'),hiveId,date,kind:'Revisión',detail:`Inspección visual del cuadro ${frameIndex} desde la escena 3D (dato de demostración).`};setData(prev=>({...prev,logs:[entry,...prev.logs],hives:prev.hives.map(h=>h.id===hiveId?{...h,lastReview:date}:h)}));setSelectedId(hiveId);setShowHiveModal(true)}} night={night} hives={data.hives.map(({id,name,kind,status,queen,queenYear})=>({id,name,kind,status,queen,queenYear}))}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
+        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={id=>{setSelectedId(id);setShowHiveModal(true);if(tutorialStep===0)setTutorialStep(1)}} onFrameInspect={(hiveId,frameIndex)=>{const date=today();const entry:LogEntry={id:makeId('LOG'),hiveId,date,kind:'Revisión',detail:`Inspección visual del cuadro ${frameIndex} desde la escena 3D (dato de demostración).`};setData(prev=>({...prev,logs:[entry,...prev.logs],hives:prev.hives.map(h=>h.id===hiveId?{...h,lastReview:date}:h)}));setSelectedId(hiveId);setShowHiveModal(true);if(tutorialStep===1){setTutorialStep(2);setTab('Revisiones');setLogKind('Revisión');setLogDetail(`Práctica del tutorial: observación del cuadro ${frameIndex}. Añade aquí qué has observado.`)}} night={night} hives={data.hives.map(({id,name,kind,status,queen,queenYear})=>({id,name,kind,status,queen,queenYear}))}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
         {selected && <aside className="side-panel">
           <div className="panel-heading"><div><small>FICHA SELECCIONADA</small><h1>{selected.name}</h1></div><span className="hive-emoji">▦</span></div>
           <div className="id-chip">{selected.id}</div>
