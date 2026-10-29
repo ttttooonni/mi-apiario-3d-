@@ -94,6 +94,57 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       edge.position.set(side * 1.98, -0.005, 0); scene.add(edge);
     }
 
+    // Distant island-like ridges give the horizon depth without hiding the apiary.
+    const ridgeColors = night ? ['#263f42', '#304b45', '#3c5948'] : ['#91aa83', '#829d73', '#73916a'];
+    for (let ridge = 0; ridge < 3; ridge++) {
+      const points: THREE.Vector3[] = [];
+      for (let p = 0; p <= 18; p++) {
+        const x = -34 + p * 3.8;
+        const z = -34 - ridge * 4 + Math.sin(p * 0.72 + ridge) * (2.2 + ridge * 0.7);
+        const y = -0.2 + Math.sin(p * 0.55 + ridge * 1.7) * (1.1 + ridge * 0.45);
+        points.push(new THREE.Vector3(x, y, z));
+      }
+      const ridgeMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 2.8 + ridge * 0.45, 7, false),
+        new THREE.MeshStandardMaterial({ color: ridgeColors[ridge], roughness: 1 })
+      );
+      ridgeMesh.position.y = 0.6 - ridge * 0.3;
+      scene.add(ridgeMesh);
+    }
+
+    // A low, rustic fence marks the apiary edge while leaving the front entrance open.
+    const fenceWood = new THREE.MeshStandardMaterial({ color: night ? '#4c4738' : '#80613e', roughness: 1 });
+    const addFenceRail = (start: THREE.Vector3, end: THREE.Vector3, height: number) => {
+      const midpoint = start.clone().add(end).multiplyScalar(0.5);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(start.distanceTo(end), 0.075, 0.075), fenceWood);
+      rail.position.set(midpoint.x, height, midpoint.z);
+      rail.lookAt(end.x, height, end.z);
+      rail.castShadow = true;
+      scene.add(rail);
+    };
+    for (let z = -8; z <= 8; z += 2.6) {
+      for (const x of [-8, 8]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+        post.position.set(x, 0.46, z); post.castShadow = true; scene.add(post);
+      }
+    }
+    for (let x = -8; x < 8; x += 2.6) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+      post.position.set(x, 0.46, -8); post.castShadow = true; scene.add(post);
+      if (Math.abs(x) > 2.7) {
+        const frontPost = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+        frontPost.position.set(x, 0.46, 8); frontPost.castShadow = true; scene.add(frontPost);
+      }
+    }
+    addFenceRail(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 0, -8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(-8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(8, 0, -8), new THREE.Vector3(8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(-2.7, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(2.7, 0, 8), new THREE.Vector3(8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, -7.6), new THREE.Vector3(8, 0, -7.6), 0.92);
+    addFenceRail(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(-2.7, 0, 8), 0.92);
+    addFenceRail(new THREE.Vector3(2.7, 0, 8), new THREE.Vector3(8, 0, 8), 0.92);
+
     // Soft rolling hills and a distant tree line frame the apiary.
     for (let i = 0; i < 10; i++) {
       const hill = new THREE.Mesh(
