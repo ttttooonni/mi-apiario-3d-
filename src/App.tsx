@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import ApiaryScene from './world/ApiaryScene';
 
 type HiveStatus = 'Activa' | 'Revisar' | 'Atención';
@@ -88,6 +88,8 @@ export default function App() {
   const [harvestDate, setHarvestDate] = useState(today());
   const [harvestProduct, setHarvestProduct] = useState('Miel');
   const [harvestLot, setHarvestLot] = useState('');
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [backupMessage, setBackupMessage] = useState('');
 
   useEffect(() => {
     if (!canSave) return;
@@ -130,7 +132,35 @@ export default function App() {
   };
   const exportBackup = () => {
     const blob = new Blob([JSON.stringify({app:'mi-apiario-3d-demo',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='mi-apiario-3d-demo-copia.json'; link.click(); URL.revokeObjectURL(url);
+    const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='mi-apiario-3d-demo-copia.json'; link.click(); window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    setBackupMessage('Copia JSON exportada. Guárdala fuera del dispositivo para tener una segunda copia.');
+  };
+  const importBackup = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file=event.target.files?.[0];
+    if (!file) return;
+    setBackupMessage('');
+    try {
+      if (file.size > 5_000_000) throw new Error('El archivo supera el límite de 5 MB.');
+      const parsed: unknown = JSON.parse(await file.text());
+      if (typeof parsed !== 'object' || parsed === null) throw new Error('El archivo no contiene un objeto JSON válido.');
+      const backup=parsed as {app?:unknown;version?:unknown;data?:unknown};
+      if (backup.app !== 'mi-apiario-3d-demo' || backup.version !== 1 || typeof backup.data !== 'object' || backup.data === null) throw new Error('No es una copia compatible de Mi Apiario 3D de demostración. No se ha cambiado ningún dato.');
+      const candidate=backup.data as Partial<DemoState>;
+      if (candidate.version !== 1 || !Array.isArray(candidate.hives) || !Array.isArray(candidate.logs) || !Array.isArray(candidate.tasks) || !Array.isArray(candidate.harvests)) throw new Error('La copia está incompleta o tiene una estructura no válida. No se ha cambiado ningún dato.');
+      const ids=new Set<string>();
+      for (const hive of candidate.hives) {
+        if (!hive || typeof hive.id !== 'string' || !hive.id || typeof hive.name !== 'string' || !['Colmena','Núcleo'].includes(hive.kind) || ids.has(hive.id)) throw new Error('La copia contiene fichas inválidas o identificadores repetidos. No se ha cambiado ningún dato.');
+        ids.add(hive.id);
+      }
+      for (const row of [...candidate.logs,...candidate.tasks]) if (!row || typeof row.id !== 'string' || typeof row.hiveId !== 'string' || !ids.has(row.hiveId)) throw new Error('Hay registros o tareas vinculados a colmenas inexistentes. No se ha cambiado ningún dato.');
+      for (const lot of candidate.harvests) if (!lot || typeof lot.id !== 'string' || typeof lot.quantity !== 'number' || !Number.isFinite(lot.quantity) || lot.quantity < 0 || typeof lot.lot !== 'string') throw new Error('La copia contiene lotes de producción inválidos. No se ha cambiado ningún dato.');
+      if (!window.confirm(`Vas a restaurar ${candidate.hives.length} fichas, ${candidate.logs.length} registros, ${candidate.tasks.length} tareas y ${candidate.harvests.length} lotes. Esto reemplazará los datos actuales de DEMOSTRACIÓN de este navegador. Exporta una copia antes si quieres conservarlos. ¿Continuar?`)) { setBackupMessage('Restauración cancelada. Los datos actuales no se han modificado.'); return; }
+      const safeState=candidate as DemoState;
+      try { window.localStorage.setItem(STORAGE_KEY,JSON.stringify(safeState)); }
+      catch { setCanSave(false); setStorageWarning('No hay espacio disponible para restaurar la copia. Los datos anteriores no se han reemplazado.'); throw new Error('El navegador no ha podido guardar la copia. Libera espacio y vuelve a intentarlo.'); }
+      setData(safeState); setSelectedIds([]); setSelectedId(safeState.hives[0]?.id ?? ''); setCanSave(true); setStorageWarning(''); setBackupMessage('Copia restaurada y validada correctamente.');
+    } catch (error) { setBackupMessage(error instanceof Error ? error.message : 'No se pudo leer la copia. No se han importado datos.'); }
+    finally { event.target.value=''; }
   };
 
   return <main className={night ? 'app night' : 'app'}>
@@ -141,7 +171,8 @@ export default function App() {
     </header>
     {showHelp && <div className="help-banner"><strong>Prototipo funcional:</strong> puedes crear fichas, registrar revisiones, sanidad, alimentación, tareas y producción. Todo se guarda localmente en este navegador bajo una clave exclusiva de demostración. No se conecta a Mi Apiario real.</div>}
     {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button onClick={exportBackup}>Exportar copia visible</button></div>}
-    <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup}>⇩ Copia JSON</button></nav>
+    <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup}>⇩ Copia JSON</button><button type="button" className="backup-tab" onClick={()=>importFileRef.current?.click()}>↥ Restaurar copia</button><input ref={importFileRef} type="file" accept="application/json,.json" onChange={importBackup} hidden aria-label="Seleccionar copia JSON para restaurar"/></nav>
+    {backupMessage && <div className="backup-message" role="status"><span>{backupMessage}</span><button type="button" onClick={()=>setBackupMessage('')} aria-label="Cerrar aviso">×</button></div>
 
     {tab==='Resumen' && <>
       <section className="workspace">
