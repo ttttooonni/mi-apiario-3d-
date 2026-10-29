@@ -164,7 +164,7 @@ export default function App() {
 
     {tab==='Resumen' && <>
       <section className="workspace">
-        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={setSelectedId} night={night}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
+        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={setSelectedId} night={night} hives={data.hives.map(({id,name,kind,status,queen,queenYear})=>({id,name,kind,status,queen,queenYear}))}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
         {selected && <aside className="side-panel">
           <div className="panel-heading"><div><small>FICHA SELECCIONADA</small><h1>{selected.name}</h1></div><span className="hive-emoji">▦</span></div>
           <div className="id-chip">{selected.id}</div>
