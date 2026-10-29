@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
-type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean };
+type SceneHive = { id: string; name: string; kind: 'Colmena' | 'Núcleo'; status: 'Activa' | 'Revisar' | 'Atención'; queen: string; queenYear: number };
+type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean; hives: SceneHive[] };
 
-export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
+export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveData }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selectedId);
@@ -154,20 +155,24 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     }
     const woodTexture = new THREE.CanvasTexture(woodCanvas); woodTexture.colorSpace = THREE.SRGBColorSpace; woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping; woodTexture.repeat.set(1, 1);
     const hiveColours = ['#dca544', '#e8cf91', '#c9913e', '#e0b95e', '#dfd0a1', '#c58c3d'];
+    const statusColours: Record<SceneHive['status'], string> = { Activa: '#48a868', Revisar: '#e7b735', Atención: '#d9534f' };
+    const queenColours: Record<string, string> = { Azul: '#2878d0', Blanco: '#f5f5ed', Amarillo: '#f2d12e', Rojo: '#d64040', Verde: '#319653', 'Sin marcar': '#8a9286' };
     const trimMaterial = new THREE.MeshStandardMaterial({ color: '#f5e7c6', roughness: 0.75 });
     const roofMaterial = new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.82 });
     const standMaterial = new THREE.MeshStandardMaterial({ color: '#6d5238', roughness: 0.95 });
     const entranceMaterial = new THREE.MeshStandardMaterial({ color: '#392b20', roughness: 1 });
 
-    for (let i = 0; i < 6; i++) {
-      const id = `DEMO-00${i + 1}`;
+    for (let i = 0; i < hiveData.length; i++) {
+      const hiveRecord = hiveData[i];
+      const id = hiveRecord.id;
       const group = new THREE.Group();
-      const row = Math.floor(i / 3), col = i % 3;
-      group.position.set((col - 1) * 3.25, 0, row * 3.9 - 2.0);
+      const columns = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(hiveData.length))));
+      const row = Math.floor(i / columns), col = i % columns;
+      group.position.set((col - (Math.min(hiveData.length, columns) - 1) / 2) * 3.25, 0, row * 3.9 - ((Math.ceil(hiveData.length / columns) - 1) * 1.95));
       group.userData.hiveId = id;
       const footprint = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.22, 0.1, 28), new THREE.MeshStandardMaterial({ color: night ? '#39483a' : '#788c54', roughness: 1 }));
       footprint.position.y = 0.02; footprint.receiveShadow = true; group.add(footprint);
-      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: '#f3c64e', transparent: true, opacity: 0.95 }));
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: statusColours[hiveRecord.status], transparent: true, opacity: 0.95 }));
       marker.rotation.x = -Math.PI / 2; marker.position.y = 0.095; marker.visible = false; group.add(marker); selectionMarkers.push(marker);
 
       const legs = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.42, 1.12), standMaterial);
@@ -175,7 +180,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       const foot = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 1.42), roofMaterial);
       foot.position.y = 0.47; foot.castShadow = true; group.add(foot);
 
-      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i], map: woodTexture, roughness: 0.86 });
+      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i % hiveColours.length], map: woodTexture, roughness: 0.86 });
       const lower = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.58, 1.22), bodyMaterial);
       lower.position.y = 0.82; lower.castShadow = true; lower.receiveShadow = true;
       lower.userData.hiveId = id; group.add(lower); pickables.push(lower);
@@ -197,20 +202,23 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         const beeDot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshStandardMaterial({ color: '#2f2920' }));
         beeDot.position.set(-0.14 + bee * 0.14, 0.66 + (bee % 2) * 0.05, 0.67); group.add(beeDot);
       }
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), roofMaterial);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), new THREE.MeshStandardMaterial({ color: statusColours[hiveRecord.status], roughness: 0.78 }));
       lid.position.y = 1.67; lid.castShadow = true; group.add(lid);
       const roofTop = new THREE.Mesh(new THREE.BoxGeometry(1.53, 0.06, 1.32), new THREE.MeshStandardMaterial({ color: '#816446', roughness: 0.8 }));
       roofTop.position.y = 1.775; group.add(roofTop);
 
-      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 72;
+      const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 104;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 256, 72);
-        ctx.strokeStyle = '#d9bd7a'; ctx.lineWidth = 4; ctx.strokeRect(3, 3, 250, 66);
-        ctx.fillStyle = '#46351f'; ctx.font = 'bold 26px sans-serif'; ctx.fillText(id, 12, 45);
+        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 320, 104);
+        ctx.strokeStyle = statusColours[hiveRecord.status]; ctx.lineWidth = 7; ctx.strokeRect(3, 3, 314, 98);
+        ctx.fillStyle = '#46351f'; ctx.font = 'bold 25px sans-serif'; ctx.fillText(hiveRecord.name.slice(0, 18), 12, 35);
+        ctx.fillStyle = queenColours[hiveRecord.queen] ?? '#8a9286'; ctx.beginPath(); ctx.arc(20, 67, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#5d513f'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#46351f'; ctx.font = '18px sans-serif'; ctx.fillText(hiveRecord.queen === 'Sin marcar' ? 'Reina sin marcar' : `Reina ${hiveRecord.queen} · ${hiveRecord.queenYear}`, 36, 73);
       }
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.36), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
       label.position.set(0, 1.37, 0.635); group.add(label);
       scene.add(group); hives.push(group);
     }
@@ -293,7 +301,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       renderer.dispose(); renderer.domElement.remove();
       environment.texture.dispose(); pmrem.dispose();
     };
-  }, [night]);
+  }, [night, hiveData.map(h => `${h.id}:${h.name}:${h.status}:${h.queen}:${h.queenYear}`).join('|')]);
 
   return <div className="three-host" ref={hostRef} role="img" aria-label="Escena 3D de un apiario de demostración. Selecciona una colmena para ver su ficha." />;
 }
