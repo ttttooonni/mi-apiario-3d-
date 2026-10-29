@@ -43,8 +43,36 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     scene.add(sun);
 
     const groundMaterial = new THREE.MeshStandardMaterial({ color: night ? '#405947' : '#91ad65', roughness: 1 });
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(120, 120), groundMaterial);
+    const terrainGeometry = new THREE.PlaneGeometry(120, 120, 64, 64);
+    const terrainPositions = terrainGeometry.attributes.position;
+    for (let i = 0; i < terrainPositions.count; i++) {
+      const x = terrainPositions.getX(i), z = terrainPositions.getY(i);
+      const rolling = Math.sin(x * 0.16) * 0.22 + Math.cos(z * 0.13) * 0.19 + Math.sin((x + z) * 0.09) * 0.12;
+      terrainPositions.setZ(i, rolling);
+    }
+    terrainGeometry.computeVertexNormals();
+    const ground = new THREE.Mesh(terrainGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.08; ground.receiveShadow = true; scene.add(ground);
+
+    // Natural scattered stones and low scrub make the terrain feel less like a flat board.
+    const stoneMaterial = new THREE.MeshStandardMaterial({ color: night ? '#59675a' : '#a9a28b', roughness: 1 });
+    const scrubMaterials = ['#496d42', '#63834b', '#81965a'].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1 }));
+    for (let i = 0; i < 58; i++) {
+      const angle = i * 2.399, radius = 6.5 + (i % 11) * 1.15;
+      const x = Math.cos(angle) * radius, z = Math.sin(angle) * radius * 0.75;
+      if (Math.abs(x) < 3.2 && z > -4.5 && z < 5.8) continue;
+      if (i % 3 === 0) {
+        const stone = new THREE.Mesh(new THREE.DodecahedronGeometry(0.12 + (i % 4) * 0.045, 0), stoneMaterial);
+        stone.position.set(x, 0.04, z); stone.rotation.set(i * 0.4, i * 0.7, i * 0.2); stone.scale.y = 0.55; stone.castShadow = true; scene.add(stone);
+      } else {
+        const scrub = new THREE.Group();
+        for (let leaf = 0; leaf < 3; leaf++) {
+          const tuft = new THREE.Mesh(new THREE.IcosahedronGeometry(0.18 + ((i + leaf) % 3) * 0.05, 0), scrubMaterials[(i + leaf) % scrubMaterials.length]);
+          tuft.position.set((leaf - 1) * 0.13, 0.12 + (leaf % 2) * 0.08, (leaf % 2) * 0.1); tuft.scale.y = 0.65; scrub.add(tuft);
+        }
+        scrub.position.set(x, 0, z); scene.add(scrub);
+      }
+    }
 
     // A slightly winding pale-earth path gives the scene a clear visual centre.
     const pathMaterial = new THREE.MeshStandardMaterial({ color: night ? '#7e826a' : '#c9b48a', roughness: 1 });
@@ -92,6 +120,18 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
 
     const hives: THREE.Group[] = [];
     const pickables: THREE.Object3D[] = [];
+    const selectionMarkers: THREE.Mesh[] = [];
+    const flightBees: { mesh: THREE.Group; phase: number; radius: number; speed: number; height: number }[] = [];
+    const beeBodyMaterial = new THREE.MeshStandardMaterial({ color: '#28231b', roughness: 0.55 });
+    const beeStripeMaterial = new THREE.MeshStandardMaterial({ color: '#f2bd36', roughness: 0.65 });
+    const wingMaterial = new THREE.MeshStandardMaterial({ color: '#f5f2df', transparent: true, opacity: 0.78, side: THREE.DoubleSide });
+    for (let i = 0; i < 14; i++) {
+      const bee = new THREE.Group();
+      const body = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), beeBodyMaterial); body.scale.set(1.25, 0.8, 1); bee.add(body);
+      const stripe = new THREE.Mesh(new THREE.SphereGeometry(0.078, 8, 6), beeStripeMaterial); stripe.scale.set(0.42, 0.82, 1.03); stripe.position.x = -0.015; bee.add(stripe);
+      for (const side of [-1, 1]) { const wing = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 5), wingMaterial); wing.scale.set(0.65, 0.22, 1.5); wing.position.set(0, 0.055, side * 0.045); bee.add(wing); }
+      scene.add(bee); flightBees.push({ mesh: bee, phase: i * 0.73, radius: 1.2 + (i % 5) * 0.65, speed: 0.55 + (i % 4) * 0.14, height: 0.85 + (i % 4) * 0.32 });
+    }
     const hiveColours = ['#dca544', '#e8cf91', '#c9913e', '#e0b95e', '#dfd0a1', '#c58c3d'];
     const trimMaterial = new THREE.MeshStandardMaterial({ color: '#f5e7c6', roughness: 0.75 });
     const roofMaterial = new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.82 });
@@ -104,6 +144,10 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       const row = Math.floor(i / 3), col = i % 3;
       group.position.set((col - 1) * 3.25, 0, row * 3.9 - 2.0);
       group.userData.hiveId = id;
+      const footprint = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.22, 0.1, 28), new THREE.MeshStandardMaterial({ color: night ? '#39483a' : '#788c54', roughness: 1 }));
+      footprint.position.y = 0.02; footprint.receiveShadow = true; group.add(footprint);
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: '#f3c64e', transparent: true, opacity: 0.95 }));
+      marker.rotation.x = -Math.PI / 2; marker.position.y = 0.095; marker.visible = false; group.add(marker); selectionMarkers.push(marker);
 
       const legs = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.42, 1.12), standMaterial);
       legs.position.y = 0.22; legs.castShadow = true; group.add(legs);
@@ -178,6 +222,8 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
+        const marker = selectionMarkers[hives.indexOf(hive)];
+        if (marker) { marker.visible = selected; marker.scale.setScalar(1 + Math.sin(performance.now() * 0.003) * 0.035); }
         hive.children.forEach(child => {
           if (child instanceof THREE.Mesh && child.userData.hiveId === hive.userData.hiveId) {
             const material = child.material as THREE.MeshStandardMaterial;
@@ -185,6 +231,12 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
             material.emissiveIntensity = selected ? 0.22 : 0;
           }
         });
+      });
+      const now = performance.now() * 0.001;
+      flightBees.forEach(bee => {
+        const t = now * bee.speed + bee.phase;
+        bee.mesh.position.set(Math.cos(t) * (3.2 + bee.radius), bee.height + Math.sin(t * 2.3) * 0.2, Math.sin(t * 0.82) * (2.8 + bee.radius * 0.5));
+        bee.mesh.rotation.y = -Math.atan2(Math.cos(t * 0.82) * 0.82, -Math.sin(t));
       });
       renderer.render(scene, camera);
     };
