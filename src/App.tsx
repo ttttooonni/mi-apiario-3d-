@@ -172,7 +172,7 @@ export default function App() {
     {showHelp && <div className="help-banner"><strong>Prototipo funcional:</strong> puedes crear fichas, registrar revisiones, sanidad, alimentación, tareas y producción. Todo se guarda localmente en este navegador bajo una clave exclusiva de demostración. No se conecta a Mi Apiario real.</div>}
     {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button onClick={exportBackup}>Exportar copia visible</button></div>}
     <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup}>⇩ Copia JSON</button><button type="button" className="backup-tab" onClick={()=>importFileRef.current?.click()}>↥ Restaurar copia</button><input ref={importFileRef} type="file" accept="application/json,.json" onChange={importBackup} hidden aria-label="Seleccionar copia JSON para restaurar"/></nav>
-    {backupMessage && <div className="backup-message" role="status"><span>{backupMessage}</span><button type="button" onClick={()=>setBackupMessage('')} aria-label="Cerrar aviso">×</button></div>
+    {backupMessage && <div className="backup-message" role="status"><span>{backupMessage}</span><button type="button" onClick={()=>setBackupMessage('')} aria-label="Cerrar aviso">×</button></div>}
 
     {tab==='Resumen' && <>
       <section className="workspace">
