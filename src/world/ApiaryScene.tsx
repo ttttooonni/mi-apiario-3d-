@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
-type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean };
+type SceneHive = { id: string; name: string; kind: 'Colmena' | 'Núcleo'; status: 'Activa' | 'Revisar' | 'Atención'; queen: string; queenYear: number };
+type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean; hives: SceneHive[] };
 
-export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
+export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveData }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selectedId);
@@ -152,22 +153,48 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         woodCtx.bezierCurveTo(70, y + Math.sin(i) * 4, 160, y - Math.cos(i) * 5, 256, y + Math.sin(i * 0.4) * 3); woodCtx.stroke();
       }
     }
-    const woodTexture = new THREE.CanvasTexture(woodCanvas); woodTexture.colorSpace = THREE.SRGBColorSpace; woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping; woodTexture.repeat.set(1, 1);
+    const woodTexture = new THREE.CanvasTexture(woodCanvas);
+    woodTexture.colorSpace = THREE.SRGBColorSpace;
+    woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping;
+    woodTexture.repeat.set(1, 1);
+    // Monochrome grain map adds subtle physical relief under grazing light.
+    const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = 256; bumpCanvas.height = 256;
+    const bumpCtx = bumpCanvas.getContext('2d');
+    if (bumpCtx) {
+      bumpCtx.fillStyle = '#888'; bumpCtx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 150; i++) {
+        const y = (i * 53) % 256, shade = 105 + ((i * 17) % 65);
+        bumpCtx.strokeStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
+        bumpCtx.lineWidth = i % 9 === 0 ? 3 : 1;
+        bumpCtx.beginPath(); bumpCtx.moveTo(0, y);
+        bumpCtx.bezierCurveTo(64, y + Math.sin(i) * 5, 190, y - Math.cos(i) * 4, 256, y + Math.sin(i * 0.4) * 2);
+        bumpCtx.stroke();
+      }
+    }
+    const woodBumpTexture = new THREE.CanvasTexture(bumpCanvas);
+    woodBumpTexture.wrapS = THREE.RepeatWrapping; woodBumpTexture.wrapT = THREE.RepeatWrapping;
+    woodBumpTexture.repeat.set(1, 1);
     const hiveColours = ['#dca544', '#e8cf91', '#c9913e', '#e0b95e', '#dfd0a1', '#c58c3d'];
+    const statusColours: Record<SceneHive['status'], string> = { Activa: '#48a868', Revisar: '#e7b735', Atención: '#d9534f' };
+    const queenColours: Record<string, string> = { Azul: '#2878d0', Blanco: '#f5f5ed', Amarillo: '#f2d12e', Rojo: '#d64040', Verde: '#319653', 'Sin marcar': '#8a9286' };
     const trimMaterial = new THREE.MeshStandardMaterial({ color: '#f5e7c6', roughness: 0.75 });
     const roofMaterial = new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.82 });
     const standMaterial = new THREE.MeshStandardMaterial({ color: '#6d5238', roughness: 0.95 });
     const entranceMaterial = new THREE.MeshStandardMaterial({ color: '#392b20', roughness: 1 });
+    const metalMaterial = new THREE.MeshStandardMaterial({ color: '#777b79', metalness: 0.72, roughness: 0.34 });
+    const screwMaterial = new THREE.MeshStandardMaterial({ color: '#353a38', metalness: 0.8, roughness: 0.3 });
 
-    for (let i = 0; i < 6; i++) {
-      const id = `DEMO-00${i + 1}`;
+    for (let i = 0; i < hiveData.length; i++) {
+      const hiveRecord = hiveData[i];
+      const id = hiveRecord.id;
       const group = new THREE.Group();
-      const row = Math.floor(i / 3), col = i % 3;
-      group.position.set((col - 1) * 3.25, 0, row * 3.9 - 2.0);
+      const columns = Math.min(4, Math.max(2, Math.ceil(Math.sqrt(hiveData.length))));
+      const row = Math.floor(i / columns), col = i % columns;
+      group.position.set((col - (Math.min(hiveData.length, columns) - 1) / 2) * 3.25, 0, row * 3.9 - ((Math.ceil(hiveData.length / columns) - 1) * 1.95));
       group.userData.hiveId = id;
       const footprint = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.22, 0.1, 28), new THREE.MeshStandardMaterial({ color: night ? '#39483a' : '#788c54', roughness: 1 }));
       footprint.position.y = 0.02; footprint.receiveShadow = true; group.add(footprint);
-      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: '#f3c64e', transparent: true, opacity: 0.95 }));
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: statusColours[hiveRecord.status], transparent: true, opacity: 0.95 }));
       marker.rotation.x = -Math.PI / 2; marker.position.y = 0.095; marker.visible = false; group.add(marker); selectionMarkers.push(marker);
 
       const legs = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.42, 1.12), standMaterial);
@@ -175,7 +202,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       const foot = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 1.42), roofMaterial);
       foot.position.y = 0.47; foot.castShadow = true; group.add(foot);
 
-      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i], map: woodTexture, roughness: 0.86 });
+      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i % hiveColours.length], map: woodTexture, bumpMap: woodBumpTexture, bumpScale: 0.045, roughness: 0.9 });
       const lower = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.58, 1.22), bodyMaterial);
       lower.position.y = 0.82; lower.castShadow = true; lower.receiveShadow = true;
       lower.userData.hiveId = id; group.add(lower); pickables.push(lower);
@@ -191,26 +218,44 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         const groove = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.018, 0.018), roofMaterial);
         groove.position.set(0, y, 0.621); group.add(groove);
       }
+      // Landing board and dark entrance tunnel add beekeeper-grade details.
       const entrance = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.075, 0.045), entranceMaterial);
       entrance.position.set(0, 0.63, 0.635); group.add(entrance);
+      const landing = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.045, 0.22), bodyMaterial);
+      landing.position.set(0, 0.56, 0.72); landing.castShadow = true; group.add(landing);
+
+      // Metal corner guards, roof edging and small fasteners break up the toy-like silhouette.
+      for (const side of [-1, 1]) {
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.82, 0.035), metalMaterial);
+        guard.position.set(side * 0.67, 1.05, 0.625); guard.castShadow = true; group.add(guard);
+        for (const y of [0.73, 1.02, 1.34, 1.51]) {
+          const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.027, 0.012, 12), screwMaterial);
+          screw.rotation.x = Math.PI / 2; screw.position.set(side * 0.67, y, 0.648); group.add(screw);
+        }
+      }
+      const roofFrontEdge = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.035, 0.045), metalMaterial);
+      roofFrontEdge.position.set(0, 1.68, 0.735); group.add(roofFrontEdge);
       for (let bee = 0; bee < 3; bee++) {
         const beeDot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshStandardMaterial({ color: '#2f2920' }));
         beeDot.position.set(-0.14 + bee * 0.14, 0.66 + (bee % 2) * 0.05, 0.67); group.add(beeDot);
       }
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), roofMaterial);
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), new THREE.MeshStandardMaterial({ color: statusColours[hiveRecord.status], roughness: 0.78 }));
       lid.position.y = 1.67; lid.castShadow = true; group.add(lid);
       const roofTop = new THREE.Mesh(new THREE.BoxGeometry(1.53, 0.06, 1.32), new THREE.MeshStandardMaterial({ color: '#816446', roughness: 0.8 }));
       roofTop.position.y = 1.775; group.add(roofTop);
 
-      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 72;
+      const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 104;
       const ctx = canvas.getContext('2d');
       if (ctx) {
-        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 256, 72);
-        ctx.strokeStyle = '#d9bd7a'; ctx.lineWidth = 4; ctx.strokeRect(3, 3, 250, 66);
-        ctx.fillStyle = '#46351f'; ctx.font = 'bold 26px sans-serif'; ctx.fillText(id, 12, 45);
+        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 320, 104);
+        ctx.strokeStyle = statusColours[hiveRecord.status]; ctx.lineWidth = 7; ctx.strokeRect(3, 3, 314, 98);
+        ctx.fillStyle = '#46351f'; ctx.font = 'bold 25px sans-serif'; ctx.fillText(hiveRecord.name.slice(0, 18), 12, 35);
+        ctx.fillStyle = queenColours[hiveRecord.queen] ?? '#8a9286'; ctx.beginPath(); ctx.arc(20, 67, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#5d513f'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#46351f'; ctx.font = '18px sans-serif'; ctx.fillText(hiveRecord.queen === 'Sin marcar' ? 'Reina sin marcar' : `Reina ${hiveRecord.queen} · ${hiveRecord.queenYear}`, 36, 73);
       }
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
-      const label = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 0.36), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+      const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
       label.position.set(0, 1.37, 0.635); group.add(label);
       scene.add(group); hives.push(group);
     }
@@ -244,6 +289,16 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       if (disposed || document.hidden) { running = false; return; }
       running = true;
       frame = requestAnimationFrame(animate);
+      // Smoothly bring the selected hive into focus, like a lightweight simulation game.
+      const focusedHive = hives.find(hive => hive.userData.hiveId === selectedRef.current);
+      const focusPoint = focusedHive
+        ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0))
+        : new THREE.Vector3(0, 0.75, 0);
+      const cameraDestination = focusedHive
+        ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4))
+        : new THREE.Vector3(12.5, 10.5, 15.5);
+      controls.target.lerp(focusPoint, 0.035);
+      camera.position.lerp(cameraDestination, 0.025);
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
@@ -291,9 +346,9 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         }
       });
       renderer.dispose(); renderer.domElement.remove();
-      environment.texture.dispose(); pmrem.dispose();
+      woodTexture.dispose(); woodBumpTexture.dispose(); environment.texture.dispose(); pmrem.dispose();
     };
-  }, [night]);
+  }, [night, hiveData.map(h => `${h.id}:${h.name}:${h.status}:${h.queen}:${h.queenYear}`).join('|')]);
 
   return <div className="three-host" ref={hostRef} role="img" aria-label="Escena 3D de un apiario de demostración. Selecciona una colmena para ver su ficha." />;
 }
