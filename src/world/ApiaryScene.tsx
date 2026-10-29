@@ -13,6 +13,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
   const selectedRef = useRef(selectedId);
   const inspectRef = useRef(onFrameInspect);
   const viewActionRef = useRef<(action: ViewAction) => void>(() => {});
+  const manualViewRef = useRef(false);
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { inspectRef.current = onFrameInspect; }, [onFrameInspect]);
@@ -296,6 +297,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     controls.minDistance = 3.2; controls.maxDistance = 48;
     controls.enablePan = true; controls.panSpeed = 0.8; controls.rotateSpeed = 0.7; controls.zoomSpeed = 0.85;
     const resetView = () => {
+      manualViewRef.current = true;
       const bounds = new THREE.Box3(); hives.forEach(hive => bounds.expandByObject(hive));
       const center = bounds.isEmpty() ? new THREE.Vector3(0, 0.8, 0) : bounds.getCenter(new THREE.Vector3());
       const size = bounds.isEmpty() ? new THREE.Vector3(8, 3, 10) : bounds.getSize(new THREE.Vector3());
@@ -305,14 +307,15 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     viewActionRef.current = (action: ViewAction) => {
       if (action === 'reset') { resetView(); return; }
       if (action === 'zoomIn' || action === 'zoomOut') {
+        manualViewRef.current = true;
         const direction = camera.position.clone().sub(controls.target); direction.multiplyScalar(action === 'zoomIn' ? 0.82 : 1.22);
         const distance = THREE.MathUtils.clamp(direction.length(), controls.minDistance, controls.maxDistance); direction.setLength(distance);
         camera.position.copy(controls.target).add(direction); controls.update(); return;
       }
-      if (action === 'top') { camera.position.set(controls.target.x + 0.1, controls.target.y + 17, controls.target.z + 0.1); controls.update(); return; }
+      if (action === 'top') { manualViewRef.current = true; camera.position.set(controls.target.x + 0.1, controls.target.y + 17, controls.target.z + 0.1); controls.update(); return; }
       const current = hiveData.findIndex(h => h.id === selectedRef.current);
       const nextIndex = action === 'next' ? (current + 1 + hiveData.length) % hiveData.length : (current - 1 + hiveData.length) % hiveData.length;
-      const nextHive = hiveData[nextIndex]; if (nextHive) selectRef.current(nextHive.id);
+      const nextHive = hiveData[nextIndex]; if (nextHive) { manualViewRef.current = false; selectRef.current(nextHive.id); }
     };
     resetView();
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
@@ -328,8 +331,8 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const hit = raycaster.intersectObjects(pickables, false)[0];
       const id = hit?.object.userData.hiveId;
       const frameIndex = hit?.object.userData.frameIndex;
-      if (typeof id === 'string' && typeof frameIndex === 'number') { selectRef.current(id); inspectRef.current(id, frameIndex); }
-      else if (typeof id === 'string') selectRef.current(id);
+      if (typeof id === 'string' && typeof frameIndex === 'number') { manualViewRef.current = false; selectRef.current(id); inspectRef.current(id, frameIndex); }
+      else if (typeof id === 'string') { manualViewRef.current = false; selectRef.current(id); }
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointermove', onMove);
@@ -348,14 +351,12 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
         const hinge = hive.userData.lidHinge as THREE.Group | undefined;
         if (hinge) { const target = hive.userData.hiveId === selectedRef.current ? -1.02 : 0; hinge.rotation.x += (target - hinge.rotation.x) * 0.075; }
       });
-      const focusPoint = focusedHive
-        ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0))
-        : new THREE.Vector3(0, 0.75, 0);
-      const cameraDestination = focusedHive
-        ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4))
-        : new THREE.Vector3(12.5, 10.5, 15.5);
-      controls.target.lerp(focusPoint, 0.035);
-      camera.position.lerp(cameraDestination, 0.025);
+      if (!manualViewRef.current) {
+        const focusPoint = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0)) : new THREE.Vector3(0, 0.75, 0);
+        const cameraDestination = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4)) : new THREE.Vector3(12.5, 10.5, 15.5);
+        controls.target.lerp(focusPoint, 0.035);
+        camera.position.lerp(cameraDestination, 0.025);
+      }
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
