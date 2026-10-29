@@ -9,7 +9,7 @@ const watchConsole = (page: Page) => {
 
 test('carga, muestra la escena 3D y completa el tutorial', async ({ page }) => {
   const errors = watchConsole(page);
-  await page.goto('./');
+  await page.goto('./', { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'Tu apiario, paso a paso' })).toBeVisible();
   await page.getByRole('button', { name: /Empezar con datos de ejemplo/ }).click();
   await expect(page.getByText('PASO 1 DE 4')).toBeVisible();
@@ -40,13 +40,14 @@ test('carga, muestra la escena 3D y completa el tutorial', async ({ page }) => {
   await page.getByRole('combobox', { name: /^Prioridad/ }).selectOption('Alta');
   await page.getByRole('button', { name: '＋ Crear tarea' }).click();
   await expect(page.getByText('¡Tutorial completado!')).toBeVisible();
-  await page.reload();
+  await page.reload({ waitUntil: 'domcontentloaded' });
   await page.getByRole('navigation', { name: 'Secciones del cuaderno' }).getByRole('button', { name: 'Tareas' }).click();
   await expect(page.getByText('Tarea E2E')).toBeVisible();
   await page.getByRole('navigation', { name: 'Secciones del cuaderno' }).getByRole('button', { name: 'Revisiones' }).click();
   await expect(page.getByText(/Observación de prueba E2E/)).toBeVisible();
   // Day/night must not rebuild the WebGL canvas.
   await page.getByRole('navigation', { name: 'Secciones del cuaderno' }).getByRole('button', { name: 'Resumen' }).click();
+  await expect(page.locator('.three-host canvas')).toBeVisible({ timeout: 30_000 });
   const handle = await page.locator('.three-host canvas').elementHandle();
   await page.getByRole('button', { name: /Noche/ }).click();
   await page.waitForTimeout(300);
@@ -56,7 +57,7 @@ test('carga, muestra la escena 3D y completa el tutorial', async ({ page }) => {
 
 test('tocar una colmena en el canvas abre su ficha (raycast real sobre WebGL)', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('mi-apiario-3d.tutorial.started', '1'));
-  await page.goto('./');
+  await page.goto('./', { waitUntil: 'domcontentloaded' });
   const canvas = page.locator('.three-host canvas');
   await expect(canvas).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(1500);
