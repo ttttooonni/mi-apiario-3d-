@@ -118,7 +118,8 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const midpoint = start.clone().add(end).multiplyScalar(0.5);
       const rail = new THREE.Mesh(new THREE.BoxGeometry(start.distanceTo(end), 0.075, 0.075), fenceWood);
       rail.position.set(midpoint.x, height, midpoint.z);
-      rail.lookAt(end.x, height, end.z);
+      const direction = end.clone().sub(start).normalize();
+      rail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
       rail.castShadow = true;
       scene.add(rail);
     };
