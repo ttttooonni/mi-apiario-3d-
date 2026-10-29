@@ -10,53 +10,50 @@ on:
 permissions:
   contents: read
 
+# One Pages deployment at a time; a newer push waits instead of being overtaken by an older run.
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
-      - name: Install dependencies
-        run: npm install
-      - name: Run tests
-        run: npm test -- --passWithNoTests
-      - name: Build production app
+      - name: Install dependencies (lockfile)
+        run: npm ci
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+      - name: Unit and flow tests
+        run: npm test
+      - name: Typecheck and production build
         run: npm run build
+      - name: Browser tests (desktop + mobile, 3D scene)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:e2e
+      - name: Upload built site for Pages
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
 
   deploy:
+    # Only publishes the exact dist/ that passed every check above.
     if: github.event_name != 'pull_request'
     needs: verify
     runs-on: ubuntu-latest
     permissions:
-      contents: read
       pages: write
       id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-      - name: Install dependencies
-        run: npm install
-      - name: Build site for deployment
-        run: npm run build
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-      - name: Upload built site
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
