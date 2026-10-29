@@ -83,6 +83,8 @@ export default function App() {
   const [bulkTaskPriority, setBulkTaskPriority] = useState<Task['priority']>('Normal');
   const [night, setNight] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => { try { return window.localStorage.getItem('mi-apiario-3d.tutorial.started') !== '1'; } catch { return true; } });
+  const [tutorialStep, setTutorialStep] = useState(-1);
   const [showHiveModal, setShowHiveModal] = useState(false);
   const [tab, setTab] = useState<Tab>('Resumen');
   const [query, setQuery] = useState('');
@@ -163,6 +165,19 @@ export default function App() {
       <div className="brand"><strong>Mi Apiario <span>3D</span></strong><small>El cuaderno apícola dentro de tu apiario</small></div>
       <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp}>ⓘ Ayuda</button></div>
     </header>
+    {tutorialStep >= 0 && <section className="tutorial-banner" aria-live="polite">
+      <div className="tutorial-step-count">PASO {tutorialStep + 1} DE 4</div>
+      <div className="tutorial-copy"><strong>{['Explora el apiario 3D','Abre una ficha de colmena','Practica con el cuaderno','Crea tu primera tarea'][tutorialStep]}</strong><p>{['Arrastra la escena para girar, usa los controles de zoom y toca una colmena para verla de cerca.','Selecciona una colmena para consultar su reina, población, reservas y observaciones ficticias.','En las pestañas puedes registrar revisiones, sanidad, alimentación y producción. Todos los datos son de prueba.','Entra en Tareas, escribe una tarea y guarda. Puedes volver a este tutorial desde el botón de ayuda.'][tutorialStep]}</p></div>
+      <div className="tutorial-actions">{tutorialStep > 0 && <button type="button" onClick={()=>{const next=tutorialStep-1;setTutorialStep(next);setTab(next===2?'Resumen':'Resumen')}}>Anterior</button>}<button type="button" className="tutorial-next" onClick={()=>{if(tutorialStep===3){setTutorialStep(-1);setTab('Tareas')}else{const next=tutorialStep+1;setTutorialStep(next);if(next===2)setTab('Revisiones');if(next===3)setTab('Tareas')}}}>{tutorialStep===3?'Ir a tareas':'Siguiente →'}</button><button type="button" className="tutorial-skip" onClick={()=>setTutorialStep(-1)}>Salir</button></div>
+    </section>}
+    {showWelcome && <div className="tutorial-backdrop"><section className="tutorial-welcome" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <div className="tutorial-bee">🐝</div><p className="tutorial-eyebrow">MI APIARIO 3D · MODO APRENDIZAJE</p><h1 id="tutorial-title">Tu apiario, paso a paso</h1>
+      <p className="tutorial-intro">Empieza con un apiario de ejemplo ya preparado: 10 colmenas, fichas de reina, registros, tareas pendientes y lotes de miel. No necesitas introducir datos para comenzar.</p>
+      <div className="tutorial-facts"><span><strong>10</strong> colmenas ficticias</span><span><strong>3</strong> registros de ejemplo</span><span><strong>3</strong> tareas para practicar</span></div>
+      <div className="tutorial-warning">Todo es demostrativo. Los datos se guardan únicamente en este navegador y no afectan a tu Mi Apiario real.</div>
+      <button type="button" className="tutorial-start" onClick={()=>{setShowWelcome(false);setTutorialStep(0);setTab('Resumen');try{window.localStorage.setItem('mi-apiario-3d.tutorial.started','1')}catch{}}}>Empezar con datos de ejemplo →</button>
+      <button type="button" className="tutorial-later" onClick={()=>{setShowWelcome(false);try{window.localStorage.setItem('mi-apiario-3d.tutorial.started','1')}catch{}}}>Entrar directamente</button>
+    </section></div>}
     {showHelp && <div className="help-banner"><strong>Prototipo funcional:</strong> puedes crear fichas, registrar revisiones, sanidad, alimentación, tareas y producción. Todo se guarda localmente en este navegador bajo una clave exclusiva de demostración. No se conecta a Mi Apiario real.</div>}
     {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button type="button" onClick={exportBackup} disabled={!canSave}>Exportar copia validada</button></div>}
     <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup} disabled={!canSave} title={!canSave?'No disponible: almacenamiento no validado':'Exportar copia validada'}>⇩ Copia JSON</button></nav>
