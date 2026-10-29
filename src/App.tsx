@@ -163,7 +163,7 @@ export default function App() {
     <header className="topbar">
       <div className="brand-mark" aria-hidden="true">🐝</div>
       <div className="brand"><strong>Mi Apiario <span>3D</span></strong><small>El cuaderno apícola dentro de tu apiario</small></div>
-      <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp}>ⓘ Ayuda</button></div>
+      <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>{setShowHelp(v=>!v);setTutorialStep(0);setTab('Resumen')}} aria-expanded={showHelp}>ⓘ Tutorial</button></div>
     </header>
     {tutorialStep >= 0 && <section className="tutorial-banner" aria-live="polite">
       <div className="tutorial-step-count">PASO {tutorialStep + 1} DE 4</div>
