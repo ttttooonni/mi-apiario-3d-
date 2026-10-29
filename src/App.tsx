@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ApiaryScene from './world/ApiaryScene';
+import { queenColorForYear, queenDotClass } from './queenColor';
 
 type HiveStatus = 'Activa' | 'Revisar' | 'Atención';
 type Hive = {
@@ -16,11 +17,6 @@ const STORAGE_KEY = 'mi-apiario-3d.demo.v1';
 const today = () => new Date().toISOString().slice(0, 10);
 
 // Código internacional de color de reina: blanco, amarillo, rojo, verde y azul en ciclos de cinco años.
-const queenColorForYear = (year: number): string => {
-  const colors = ['Azul', 'Blanco', 'Amarillo', 'Rojo', 'Verde'];
-  return Number.isInteger(year) && year >= 0 ? colors[year % 5] : 'Sin marcar';
-};
-const queenDotClass = (year: number, marked = true): string => marked ? 'queen-dot queen-' + queenColorForYear(year).toLowerCase() : 'queen-dot queen-sin-marcar';
 const seedHives: Hive[] = [
   { id:'DEMO-001', name:'Colmena 01', kind:'Colmena', status:'Activa', note:'Colonia de ejemplo con actividad normal.', queen:queenColorForYear(2025), queenYear:2025, population:'Media-alta', reserves:'Buenas', brood:'Presente', lastReview:'2026-10-12', production:8.5, apiary:'Apiario Demo' },
   { id:'DEMO-002', name:'Colmena 02', kind:'Colmena', status:'Revisar', note:'Revisión ficticia pendiente.', queen:queenColorForYear(2024), queenYear:2024, population:'Media', reserves:'Medias', brood:'Por comprobar', lastReview:'2026-09-28', production:5.2, apiary:'Apiario Demo' },
