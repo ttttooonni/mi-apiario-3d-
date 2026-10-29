@@ -28,3 +28,7 @@ Este prototipo utiliza datos ficticios en memoria. No modifica ni importa datos 
 
 ## Despliegue
 Aún no está configurado GitHub Pages. La publicación se hará después de comprobar la compilación y probar la experiencia en escritorio y móvil.
+
+
+## Publicación
+La aplicación de prueba se publica mediante GitHub Actions y GitHub Pages. Los datos incluidos son ficticios y no se conectan con Mi Apiario real.
