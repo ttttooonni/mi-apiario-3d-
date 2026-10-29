@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import ApiaryScene from './world/ApiaryScene';
+import { queenColorForYear, queenDotClass } from './queenColor';
 
 type HiveStatus = 'Activa' | 'Revisar' | 'Atención';
 type Hive = {
@@ -14,13 +15,15 @@ type DemoState = { version: 1; hives: Hive[]; logs: LogEntry[]; tasks: Task[]; h
 
 const STORAGE_KEY = 'mi-apiario-3d.demo.v1';
 const today = () => new Date().toISOString().slice(0, 10);
+
+// Código internacional de color de reina: blanco, amarillo, rojo, verde y azul en ciclos de cinco años.
 const seedHives: Hive[] = [
-  { id:'DEMO-001', name:'Colmena 01', kind:'Colmena', status:'Activa', note:'Colonia de ejemplo con actividad normal.', queen:'Amarillo', queenYear:2025, population:'Media-alta', reserves:'Buenas', brood:'Presente', lastReview:'2026-10-12', production:8.5, apiary:'Apiario Demo' },
-  { id:'DEMO-002', name:'Colmena 02', kind:'Colmena', status:'Revisar', note:'Revisión ficticia pendiente.', queen:'Blanco', queenYear:2024, population:'Media', reserves:'Medias', brood:'Por comprobar', lastReview:'2026-09-28', production:5.2, apiary:'Apiario Demo' },
-  { id:'DEMO-003', name:'Colmena 03', kind:'Colmena', status:'Activa', note:'Registro ficticio para probar el cuaderno.', queen:'Verde', queenYear:2026, population:'Fuerte', reserves:'Buenas', brood:'Abundante', lastReview:'2026-10-15', production:9.1, apiary:'Apiario Demo' },
-  { id:'DEMO-004', name:'Colmena 04', kind:'Colmena', status:'Atención', note:'Aviso ficticio; no es una alerta sanitaria real.', queen:'Rojo', queenYear:2023, population:'Débil', reserves:'Bajas', brood:'Por comprobar', lastReview:'2026-10-02', production:2.0, apiary:'Apiario Demo' },
-  { id:'DEMO-005', name:'Colmena 05', kind:'Colmena', status:'Activa', note:'Registro de demostración.', queen:'Amarillo', queenYear:2025, population:'Media', reserves:'Buenas', brood:'Normal', lastReview:'2026-10-10', production:6.7, apiary:'Apiario Demo' },
-  { id:'DEMO-006', name:'Colmena 06', kind:'Colmena', status:'Activa', note:'Registro de demostración.', queen:'Azul', queenYear:2024, population:'Media-alta', reserves:'Medias', brood:'Normal', lastReview:'2026-10-14', production:7.4, apiary:'Apiario Demo' },
+  { id:'DEMO-001', name:'Colmena 01', kind:'Colmena', status:'Activa', note:'Colonia de ejemplo con actividad normal.', queen:queenColorForYear(2025), queenYear:2025, population:'Media-alta', reserves:'Buenas', brood:'Presente', lastReview:'2026-10-12', production:8.5, apiary:'Apiario Demo' },
+  { id:'DEMO-002', name:'Colmena 02', kind:'Colmena', status:'Revisar', note:'Revisión ficticia pendiente.', queen:queenColorForYear(2024), queenYear:2024, population:'Media', reserves:'Medias', brood:'Por comprobar', lastReview:'2026-09-28', production:5.2, apiary:'Apiario Demo' },
+  { id:'DEMO-003', name:'Colmena 03', kind:'Colmena', status:'Activa', note:'Registro ficticio para probar el cuaderno.', queen:queenColorForYear(2026), queenYear:2026, population:'Fuerte', reserves:'Buenas', brood:'Abundante', lastReview:'2026-10-15', production:9.1, apiary:'Apiario Demo' },
+  { id:'DEMO-004', name:'Colmena 04', kind:'Colmena', status:'Atención', note:'Aviso ficticio; no es una alerta sanitaria real.', queen:queenColorForYear(2023), queenYear:2023, population:'Débil', reserves:'Bajas', brood:'Por comprobar', lastReview:'2026-10-02', production:2.0, apiary:'Apiario Demo' },
+  { id:'DEMO-005', name:'Colmena 05', kind:'Colmena', status:'Activa', note:'Registro de demostración.', queen:queenColorForYear(2025), queenYear:2025, population:'Media', reserves:'Buenas', brood:'Normal', lastReview:'2026-10-10', production:6.7, apiary:'Apiario Demo' },
+  { id:'DEMO-006', name:'Colmena 06', kind:'Colmena', status:'Activa', note:'Registro de demostración.', queen:queenColorForYear(2024), queenYear:2024, population:'Media-alta', reserves:'Medias', brood:'Normal', lastReview:'2026-10-14', production:7.4, apiary:'Apiario Demo' },
 ];
 const seedState: DemoState = {
   version: 1, hives: seedHives,
@@ -48,7 +51,9 @@ function readState(): { state: DemoState; writable: boolean; message: string } {
     if (typeof parsed === 'object' && parsed !== null && (parsed as DemoState).version === 1 &&
         Array.isArray((parsed as DemoState).hives) && Array.isArray((parsed as DemoState).logs) &&
         Array.isArray((parsed as DemoState).tasks) && Array.isArray((parsed as DemoState).harvests)) {
-      return {state:parsed as DemoState,writable:true,message:''};
+      const validState = parsed as DemoState;
+      // Recalcula colores existentes según el año; conserva explícitamente las reinas sin marcar.
+      return {state:{...validState,hives:validState.hives.map(hive=>({...hive,queen:hive.queen==='Sin marcar'?'Sin marcar':queenColorForYear(hive.queenYear)}))},writable:true,message:''};
     }
     return {state:seedState,writable:false,message:'La copia local de demostración no tiene el formato esperado. Se conserva sin sobrescribir; exporta cualquier copia que necesites antes de reiniciar.'};
   } catch {
@@ -129,8 +134,22 @@ export default function App() {
     setHarvestQty(''); setHarvestLot(''); setTab('Producción');
   };
   const exportBackup = () => {
-    const blob = new Blob([JSON.stringify({app:'mi-apiario-3d-demo',version:1,exportedAt:new Date().toISOString(),data},null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='mi-apiario-3d-demo-copia.json'; link.click(); URL.revokeObjectURL(url);
+    // Nunca exportar el estado de ejemplo como si fuera una copia recuperada.
+    if (!canSave || initial.writable === false && initial.message !== '') {
+      setStorageWarning('Exportación bloqueada: el almacenamiento original no se ha podido validar. No se ha descargado una copia falsa ni se han sobrescrito los datos. Recupera el almacenamiento o usa una copia anterior verificada.');
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (raw === null) throw new Error('No se encontró el almacenamiento original.');
+      const parsed: unknown = JSON.parse(raw);
+      if (typeof parsed !== 'object' || parsed === null || (parsed as DemoState).version !== 1 || !Array.isArray((parsed as DemoState).hives) || !Array.isArray((parsed as DemoState).logs) || !Array.isArray((parsed as DemoState).tasks) || !Array.isArray((parsed as DemoState).harvests)) throw new Error('El almacenamiento no supera la validación.');
+      const blob = new Blob([JSON.stringify({app:'mi-apiario-3d-demo',version:1,exportedAt:new Date().toISOString(),data:parsed},null,2)],{type:'application/json'});
+      const url=URL.createObjectURL(blob); const link=document.createElement('a'); link.href=url; link.download='mi-apiario-3d-demo-copia.json'; link.click(); window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+    } catch {
+      setCanSave(false);
+      setStorageWarning('No se puede crear una copia segura: los datos guardados están ausentes o dañados. No se ha descargado el estado de ejemplo. No reinicies ni borres el almacenamiento si necesitas recuperar esos datos.');
+    }
   };
 
   return <main className={night ? 'app night' : 'app'}>
@@ -140,8 +159,8 @@ export default function App() {
       <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp}>ⓘ Ayuda</button></div>
     </header>
     {showHelp && <div className="help-banner"><strong>Prototipo funcional:</strong> puedes crear fichas, registrar revisiones, sanidad, alimentación, tareas y producción. Todo se guarda localmente en este navegador bajo una clave exclusiva de demostración. No se conecta a Mi Apiario real.</div>}
-    {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button onClick={exportBackup}>Exportar copia visible</button></div>}
-    <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup}>⇩ Copia JSON</button></nav>
+    {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button type="button" onClick={exportBackup} disabled={!canSave}>Exportar copia validada</button></div>}
+    <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup} disabled={!canSave} title={!canSave?'No disponible: almacenamiento no validado':'Exportar copia validada'}>⇩ Copia JSON</button></nav>
 
     {tab==='Resumen' && <>
       <section className="workspace">
@@ -153,7 +172,7 @@ export default function App() {
           <p className="note">{selected.note}</p>
           <div className="detail-card"><small>DATOS APÍCOLAS DE EJEMPLO</small>
             <div className="detail-line"><span>Tipo</span><strong>{selected.kind}</strong></div><div className="detail-line"><span>Apiario</span><strong>{selected.apiary}</strong></div>
-            <div className="detail-line"><span>Reina · color</span><strong><i className={'queen-dot queen-'+selected.queen.toLowerCase()}/>{selected.queen}</strong></div>
+            <div className="detail-line"><span>Reina · color</span><strong><i className={selected.queen==='Sin marcar'?queenDotClass(selected.queenYear,false):queenDotClass(selected.queenYear)}/>{selected.queen==='Sin marcar'?'Sin marcar · pendiente de identificar':queenColorForYear(selected.queenYear)}</strong></div>
             <div className="detail-line"><span>Año de reina</span><strong>{selected.queenYear}</strong></div><div className="detail-line"><span>Población</span><strong>{selected.population}</strong></div>
             <div className="detail-line"><span>Reservas</span><strong>{selected.reserves}</strong></div><div className="detail-line"><span>Cría</span><strong>{selected.brood}</strong></div>
             <div className="detail-line"><span>Última revisión</span><strong>{fmtDate(selected.lastReview)}</strong></div><div className="detail-line"><span>Producción orientativa</span><strong>{selected.production.toLocaleString('es-ES')} kg</strong></div>
@@ -170,7 +189,7 @@ export default function App() {
       <div className="bulk-toolbar"><div className="bulk-heading"><strong>Acciones sobre varias colmenas</strong><span>{selectedIds.length} seleccionada(s)</span></div><div className="bulk-buttons"><button type="button" onClick={selectVisibleHives}>Seleccionar resultados</button><button type="button" onClick={clearHiveSelection}>Quitar selección</button><label>Estado común<select value={bulkStatus} onChange={e=>setBulkStatus(e.target.value as HiveStatus)}><option>Activa</option><option>Revisar</option><option>Atención</option></select></label><button type="button" className="primary-button" disabled={!selectedIds.length} onClick={applyBulkStatus}>Aplicar estado</button></div>
       <form className="bulk-task-form" onSubmit={addBulkTasks}><input value={bulkTaskTitle} onChange={e=>setBulkTaskTitle(e.target.value)} placeholder="Tarea para todas las seleccionadas" required/><input type="date" value={bulkTaskDue} onChange={e=>setBulkTaskDue(e.target.value)} required/><select value={bulkTaskPriority} onChange={e=>setBulkTaskPriority(e.target.value as Task['priority'])}><option>Normal</option><option>Alta</option></select><button type="submit" className="primary-button" disabled={!selectedIds.length}>Crear tarea para cada una</button></form>
       <p className="bulk-hint">Marca varias fichas y aplica el mismo estado o crea una tarea individual para cada colmena. No se borran registros.</p></div>
-      <div className="hive-grid">{visibleHives.map(h=><article className={'hive-list-card '+(selectedId===h.id?'selected':'')+(selectedIds.includes(h.id)?' bulk-selected':'')} key={h.id}><label className="hive-select-check"><input type="checkbox" checked={selectedIds.includes(h.id)} onChange={()=>toggleHiveSelection(h.id)} aria-label={'Seleccionar '+h.name}/><span>Seleccionar</span></label><button type="button" className="hive-open-button" onClick={()=>{setSelectedId(h.id);setTab('Resumen')}}><span className="hive-list-icon">▦</span><span className="hive-list-main"><strong>{h.name}</strong><small>{h.id} · {h.kind}</small></span><span className={'status '+h.status.toLowerCase().replace(' ','-')}>{h.status}</span><span className="hive-list-foot">Reina {h.queen} · Última revisión: {fmtDate(h.lastReview)}</span></button></article>)}</div></section>}
+      <div className="hive-grid">{visibleHives.map(h=><article className={'hive-list-card '+(selectedId===h.id?'selected':'')+(selectedIds.includes(h.id)?' bulk-selected':'')} key={h.id}><label className="hive-select-check"><input type="checkbox" checked={selectedIds.includes(h.id)} onChange={()=>toggleHiveSelection(h.id)} aria-label={'Seleccionar '+h.name}/><span>Seleccionar</span></label><button type="button" className="hive-open-button" onClick={()=>{setSelectedId(h.id);setTab('Resumen')}}><span className="hive-list-icon">▦</span><span className="hive-list-main"><strong>{h.name}</strong><small>{h.id} · {h.kind}</small></span><span className={'status '+h.status.toLowerCase().replace(' ','-')}>{h.status}</span><span className="hive-list-foot">Reina {h.queen==='Sin marcar'?'Sin marcar':queenColorForYear(h.queenYear)} · Última revisión: {fmtDate(h.lastReview)}</span></button></article>)}</div></section>}
 
     {tab==='Revisiones' && <section className="feature-page"><PageTitle title="Revisiones y actividad" subtitle="Registra inspecciones, observaciones y actuaciones por colonia."/><form className="record-form" onSubmit={addLog}><label>Colmena<select value={selected?.id??''} onChange={e=>setSelectedId(e.target.value)}>{data.hives.map(h=><option key={h.id} value={h.id}>{h.name} ({h.id})</option>)}</select></label><label>Tipo de registro<select value={logKind} onChange={e=>setLogKind(e.target.value as LogEntry['kind'])}><option>Revisión</option><option>Sanidad</option><option>Alimentación</option><option>Nota</option></select></label><label>Fecha<input type="date" value={logDate} onChange={e=>setLogDate(e.target.value)} required/></label><label className="full-field">Observaciones<textarea value={logDetail} onChange={e=>setLogDetail(e.target.value)} placeholder="Población, cría, reservas, comportamiento…" required rows={3}/></label><button className="primary-button">Guardar registro de demostración</button></form><RecordList logs={data.logs} hives={data.hives} onDelete={id=>setData(prev=>({...prev,logs:prev.logs.filter(l=>l.id!==id)}))}/></section>}
 
