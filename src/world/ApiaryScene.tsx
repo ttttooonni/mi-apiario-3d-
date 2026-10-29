@@ -153,7 +153,27 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
         woodCtx.bezierCurveTo(70, y + Math.sin(i) * 4, 160, y - Math.cos(i) * 5, 256, y + Math.sin(i * 0.4) * 3); woodCtx.stroke();
       }
     }
-    const woodTexture = new THREE.CanvasTexture(woodCanvas); woodTexture.colorSpace = THREE.SRGBColorSpace; woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping; woodTexture.repeat.set(1, 1);
+    const woodTexture = new THREE.CanvasTexture(woodCanvas);
+    woodTexture.colorSpace = THREE.SRGBColorSpace;
+    woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping;
+    woodTexture.repeat.set(1, 1);
+    // Monochrome grain map adds subtle physical relief under grazing light.
+    const bumpCanvas = document.createElement('canvas'); bumpCanvas.width = 256; bumpCanvas.height = 256;
+    const bumpCtx = bumpCanvas.getContext('2d');
+    if (bumpCtx) {
+      bumpCtx.fillStyle = '#888'; bumpCtx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 150; i++) {
+        const y = (i * 53) % 256, shade = 105 + ((i * 17) % 65);
+        bumpCtx.strokeStyle = 'rgb(' + shade + ',' + shade + ',' + shade + ')';
+        bumpCtx.lineWidth = i % 9 === 0 ? 3 : 1;
+        bumpCtx.beginPath(); bumpCtx.moveTo(0, y);
+        bumpCtx.bezierCurveTo(64, y + Math.sin(i) * 5, 190, y - Math.cos(i) * 4, 256, y + Math.sin(i * 0.4) * 2);
+        bumpCtx.stroke();
+      }
+    }
+    const woodBumpTexture = new THREE.CanvasTexture(bumpCanvas);
+    woodBumpTexture.wrapS = THREE.RepeatWrapping; woodBumpTexture.wrapT = THREE.RepeatWrapping;
+    woodBumpTexture.repeat.set(1, 1);
     const hiveColours = ['#dca544', '#e8cf91', '#c9913e', '#e0b95e', '#dfd0a1', '#c58c3d'];
     const statusColours: Record<SceneHive['status'], string> = { Activa: '#48a868', Revisar: '#e7b735', Atención: '#d9534f' };
     const queenColours: Record<string, string> = { Azul: '#2878d0', Blanco: '#f5f5ed', Amarillo: '#f2d12e', Rojo: '#d64040', Verde: '#319653', 'Sin marcar': '#8a9286' };
@@ -161,6 +181,8 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
     const roofMaterial = new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.82 });
     const standMaterial = new THREE.MeshStandardMaterial({ color: '#6d5238', roughness: 0.95 });
     const entranceMaterial = new THREE.MeshStandardMaterial({ color: '#392b20', roughness: 1 });
+    const metalMaterial = new THREE.MeshStandardMaterial({ color: '#777b79', metalness: 0.72, roughness: 0.34 });
+    const screwMaterial = new THREE.MeshStandardMaterial({ color: '#353a38', metalness: 0.8, roughness: 0.3 });
 
     for (let i = 0; i < hiveData.length; i++) {
       const hiveRecord = hiveData[i];
@@ -180,7 +202,7 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       const foot = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 1.42), roofMaterial);
       foot.position.y = 0.47; foot.castShadow = true; group.add(foot);
 
-      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i % hiveColours.length], map: woodTexture, roughness: 0.86 });
+      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i % hiveColours.length], map: woodTexture, bumpMap: woodBumpTexture, bumpScale: 0.045, roughness: 0.9 });
       const lower = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.58, 1.22), bodyMaterial);
       lower.position.y = 0.82; lower.castShadow = true; lower.receiveShadow = true;
       lower.userData.hiveId = id; group.add(lower); pickables.push(lower);
@@ -196,8 +218,23 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
         const groove = new THREE.Mesh(new THREE.BoxGeometry(1.16, 0.018, 0.018), roofMaterial);
         groove.position.set(0, y, 0.621); group.add(groove);
       }
+      // Landing board and dark entrance tunnel add beekeeper-grade details.
       const entrance = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.075, 0.045), entranceMaterial);
       entrance.position.set(0, 0.63, 0.635); group.add(entrance);
+      const landing = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.045, 0.22), bodyMaterial);
+      landing.position.set(0, 0.56, 0.72); landing.castShadow = true; group.add(landing);
+
+      // Metal corner guards, roof edging and small fasteners break up the toy-like silhouette.
+      for (const side of [-1, 1]) {
+        const guard = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.82, 0.035), metalMaterial);
+        guard.position.set(side * 0.67, 1.05, 0.625); guard.castShadow = true; group.add(guard);
+        for (const y of [0.73, 1.02, 1.34, 1.51]) {
+          const screw = new THREE.Mesh(new THREE.CylinderGeometry(0.027, 0.027, 0.012, 12), screwMaterial);
+          screw.rotation.x = Math.PI / 2; screw.position.set(side * 0.67, y, 0.648); group.add(screw);
+        }
+      }
+      const roofFrontEdge = new THREE.Mesh(new THREE.BoxGeometry(1.72, 0.035, 0.045), metalMaterial);
+      roofFrontEdge.position.set(0, 1.68, 0.735); group.add(roofFrontEdge);
       for (let bee = 0; bee < 3; bee++) {
         const beeDot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshStandardMaterial({ color: '#2f2920' }));
         beeDot.position.set(-0.14 + bee * 0.14, 0.66 + (bee % 2) * 0.05, 0.67); group.add(beeDot);
@@ -299,7 +336,7 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
         }
       });
       renderer.dispose(); renderer.domElement.remove();
-      environment.texture.dispose(); pmrem.dispose();
+      woodTexture.dispose(); woodBumpTexture.dispose(); environment.texture.dispose(); pmrem.dispose();
     };
   }, [night, hiveData.map(h => `${h.id}:${h.name}:${h.status}:${h.queen}:${h.queenYear}`).join('|')]);
 
