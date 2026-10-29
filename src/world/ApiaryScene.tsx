@@ -4,6 +4,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 type SceneHive = { id: string; name: string; kind: 'Colmena' | 'Núcleo'; status: 'Activa' | 'Revisar' | 'Atención'; queen: string; queenYear: number };
+type ViewAction = 'reset' | 'zoomIn' | 'zoomOut' | 'top' | 'previous' | 'next';
 type Props = { selectedId: string; onSelect: (id: string) => void; onFrameInspect: (id: string, frameIndex: number) => void; night: boolean; hives: SceneHive[] };
 
 export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, night, hives: hiveData }: Props) {
@@ -11,6 +12,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selectedId);
   const inspectRef = useRef(onFrameInspect);
+  const viewActionRef = useRef<(action: ViewAction) => void>(() => {});
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { inspectRef.current = onFrameInspect; }, [onFrameInspect]);
@@ -24,7 +26,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     scene.fog = new THREE.Fog(sky, 28, 82);
 
     const camera = new THREE.PerspectiveCamera(46, host.clientWidth / host.clientHeight, 0.1, 180);
-    camera.position.set(12.5, 10.5, 15.5);
+    camera.position.set(9.5, 7.2, 10.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
@@ -290,8 +292,29 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.06;
-    controls.target.set(0, 0.75, 0); controls.maxPolarAngle = Math.PI / 2.03;
-    controls.minDistance = 5.5; controls.maxDistance = 38;
+    controls.target.set(0, 0.8, 0); controls.maxPolarAngle = Math.PI / 2.03;
+    controls.minDistance = 3.2; controls.maxDistance = 48;
+    controls.enablePan = true; controls.panSpeed = 0.8; controls.rotateSpeed = 0.7; controls.zoomSpeed = 0.85;
+    const resetView = () => {
+      const bounds = new THREE.Box3(); hives.forEach(hive => bounds.expandByObject(hive));
+      const center = bounds.isEmpty() ? new THREE.Vector3(0, 0.8, 0) : bounds.getCenter(new THREE.Vector3());
+      const size = bounds.isEmpty() ? new THREE.Vector3(8, 3, 10) : bounds.getSize(new THREE.Vector3());
+      const distance = Math.max(9, Math.max(size.x, size.z) * 1.15);
+      controls.target.copy(center); camera.position.set(center.x + distance * 0.62, center.y + distance * 0.52, center.z + distance * 0.78); controls.update();
+    };
+    viewActionRef.current = (action: ViewAction) => {
+      if (action === 'reset') { resetView(); return; }
+      if (action === 'zoomIn' || action === 'zoomOut') {
+        const direction = camera.position.clone().sub(controls.target); direction.multiplyScalar(action === 'zoomIn' ? 0.82 : 1.22);
+        const distance = THREE.MathUtils.clamp(direction.length(), controls.minDistance, controls.maxDistance); direction.setLength(distance);
+        camera.position.copy(controls.target).add(direction); controls.update(); return;
+      }
+      if (action === 'top') { camera.position.set(controls.target.x + 0.1, controls.target.y + 17, controls.target.z + 0.1); controls.update(); return; }
+      const current = hiveData.findIndex(h => h.id === selectedRef.current);
+      const nextIndex = action === 'next' ? (current + 1 + hiveData.length) % hiveData.length : (current - 1 + hiveData.length) % hiveData.length;
+      const nextHive = hiveData[nextIndex]; if (nextHive) selectRef.current(nextHive.id);
+    };
+    resetView();
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
     let downX = 0, downY = 0, dragged = false;
     const onDown = (event: PointerEvent) => { downX = event.clientX; downY = event.clientY; dragged = false; };
@@ -379,10 +402,21 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
           if (Array.isArray(material)) material.forEach(item => item.dispose()); else material.dispose();
         }
       });
+      viewActionRef.current = () => {};
       renderer.dispose(); renderer.domElement.remove();
       woodTexture.dispose(); woodBumpTexture.dispose(); environment.texture.dispose(); pmrem.dispose();
     };
   }, [night, hiveData.map(h => `${h.id}:${h.name}`).join('|')]);
 
-  return <div className="three-host" ref={hostRef} role="img" aria-label="Escena 3D de un apiario de demostración. Selecciona una colmena para ver su ficha." />;
+  return <div className="three-host" ref={hostRef} aria-label="Escena 3D interactiva del apiario de demostración">
+    <div className="scene-controls" aria-label="Controles de cámara">
+      <button type="button" onClick={() => viewActionRef.current('reset')} title="Ver todo el apiario">⌂ <span>Vista general</span></button>
+      <button type="button" onClick={() => viewActionRef.current('zoomIn')} title="Acercar">＋</button>
+      <button type="button" onClick={() => viewActionRef.current('zoomOut')} title="Alejar">−</button>
+      <button type="button" onClick={() => viewActionRef.current('top')} title="Vista desde arriba">▦</button>
+      <button type="button" onClick={() => viewActionRef.current('previous')} title="Colmena anterior">‹</button>
+      <button type="button" onClick={() => viewActionRef.current('next')} title="Colmena siguiente">›</button>
+    </div>
+    <div className="scene-hint">Arrastra para girar · pellizca para zoom · toca una colmena</div>
+  </div>;
 }
