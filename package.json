@@ -1,26 +1,34 @@
 {
   "name": "mi-apiario-3d",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "test": "vitest run"
+    "preview": "vite preview --base /mi-apiario-3d-/",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "check": "npm test && npm run build && npm run test:e2e"
   },
   "dependencies": {
-    "three": "^0.180.0",
     "react": "^19.1.1",
-    "react-dom": "^19.1.1"
+    "react-dom": "^19.1.1",
+    "three": "^0.180.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@testing-library/react": "^16.3.3",
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@types/three": "^0.180.0",
     "@vitejs/plugin-react": "^5.0.2",
+    "jsdom": "^29.1.1",
     "typescript": "~5.9.2",
     "vite": "^7.1.7",
-    "vitest": "^3.2.4"
+    "vitest": "^4.1.12"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }
