@@ -74,3 +74,15 @@
 .night .tutorial-banner{background:#243634;border-color:#3c5048}.night .tutorial-copy strong{color:#dcebd5}.night .tutorial-copy p{color:#b7c2b1}.night .tutorial-actions button{background:#344745;border-color:#50615c;color:#e5eadf}.night .tutorial-actions .tutorial-next{background:#62845a;color:#fff}
 @media(max-width:760px){.tutorial-banner{grid-template-columns:auto minmax(0,1fr);gap:10px}.tutorial-actions{grid-column:1/-1;justify-content:flex-start}.tutorial-facts span{font-size:9px}.tutorial-facts strong{font-size:20px}}
 @media(max-width:420px){.tutorial-welcome{padding:23px 17px;border-radius:19px}.tutorial-intro{font-size:12px}.tutorial-facts{gap:5px}.tutorial-facts span{padding:10px 3px}.tutorial-warning{text-align:center}}
+
+/* Avisos de guardado visibles y estados de carga */
+.save-notice{display:flex;gap:12px;align-items:center;justify-content:space-between;margin:10px 16px 0;padding:10px 14px;border-radius:10px;font-weight:600;font-size:15px}
+.save-notice.ok{background:#e3f3e6;color:#1f5a2e;border:1px solid #9fd0aa}
+.save-notice.error{background:#fde7e5;color:#8a1f17;border:1px solid #eea79f}
+.save-notice button{background:none;border:0;font-size:20px;min-width:44px;min-height:44px;cursor:pointer;color:inherit}
+.scene-loading{display:grid;place-items:center;font-weight:600;color:#46351f}
+.tutorial-waiting{display:block;opacity:.75;margin-top:4px}
+.edit-link{color:#2c5d8a}
+/* Objetivos táctiles cómodos en móvil */
+@media (pointer:coarse){button,select,input,textarea{min-height:44px}.scene-controls button{min-width:44px}input,select,textarea{font-size:16px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
