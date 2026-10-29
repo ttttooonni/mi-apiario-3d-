@@ -289,6 +289,16 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       if (disposed || document.hidden) { running = false; return; }
       running = true;
       frame = requestAnimationFrame(animate);
+      // Smoothly bring the selected hive into focus, like a lightweight simulation game.
+      const focusedHive = hives.find(hive => hive.userData.hiveId === selectedRef.current);
+      const focusPoint = focusedHive
+        ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0))
+        : new THREE.Vector3(0, 0.75, 0);
+      const cameraDestination = focusedHive
+        ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4))
+        : new THREE.Vector3(12.5, 10.5, 15.5);
+      controls.target.lerp(focusPoint, 0.035);
+      camera.position.lerp(cameraDestination, 0.025);
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
