@@ -3,11 +3,11 @@
 Prototipo independiente para explorar un apiario en una escena tridimensional con Three.js.
 
 ## Estado
-- Aplicación web React + TypeScript + Vite.
-- Escena 3D con terreno, vegetación, camino y seis colmenas ficticias seleccionables.
-- Selector de día/noche y ficha lateral de demostración.
-- No usa datos reales ni se conecta a Mi Apiario.
-- Las imágenes de concepto generadas durante el diseño son referencias visuales; no representan la interfaz funcional actual.
+- Aplicación web React + TypeScript + Vite con escena 3D y controles día/noche.
+- Cuaderno de demostración con fichas de colmenas/núcleos, revisiones, sanidad, alimentación, tareas y lotes de producción.
+- Selección múltiple y acciones en lote sobre las fichas.
+- Copia JSON exportable; la restauración validada está en revisión en PR #4.
+- Los registros son ficticios y no se conectan a Mi Apiario real.
 
 ## Requisitos
 Node.js 20+ y npm.
@@ -24,11 +24,10 @@ npm run build
 ```
 
 ## Integridad de datos
-Este prototipo utiliza datos ficticios en memoria. No modifica ni importa datos de Mi Apiario. Cualquier integración futura deberá comenzar en modo de solo lectura y pasar pruebas de compatibilidad y recuperación antes de habilitar escrituras.
+El prototipo guarda datos ficticios en el navegador bajo la clave independiente `mi-apiario-3d.demo.v1`. No modifica ni importa datos de Mi Apiario real. La restauración debe aceptar solo copias exportadas por esta aplicación y avisar antes de reemplazar los datos locales de demostración. Cualquier futura integración con Mi Apiario debe empezar en solo lectura y pasar pruebas de compatibilidad y recuperación.
 
 ## Despliegue
-Aún no está configurado GitHub Pages. La publicación se hará después de comprobar la compilación y probar la experiencia en escritorio y móvil.
-
+La publicación se realiza mediante GitHub Actions y GitHub Pages. La compilación automatizada comprueba que el proyecto puede construirse; no sustituye las pruebas funcionales manuales en móvil.
 
 ## Publicación
 La aplicación de prueba se publica mediante GitHub Actions y GitHub Pages. Los datos incluidos son ficticios y no se conectan con Mi Apiario real.
