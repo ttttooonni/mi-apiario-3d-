@@ -52,3 +52,25 @@
 /* Controles de navegación 3D: accesibles en móvil y escritorio. */
 .scene-controls{position:absolute;z-index:4;top:12px;right:12px;display:flex;gap:6px;align-items:center;flex-wrap:wrap;max-width:calc(100% - 24px)}.scene-controls button{display:flex;align-items:center;justify-content:center;gap:5px;min-width:36px;height:36px;padding:0 10px;border:1px solid #ffffffb8;border-radius:11px;background:#fffdf0e8;color:#354b34;font-size:19px;font-weight:800;box-shadow:0 3px 12px #1b302522;backdrop-filter:blur(8px);cursor:pointer}.scene-controls button:first-child{font-size:13px}.scene-controls button:hover{background:#fff;transform:translateY(-1px)}.scene-hint{position:absolute;z-index:3;left:12px;bottom:12px;max-width:calc(100% - 24px);padding:8px 11px;border:1px solid #ffffff80;border-radius:10px;background:#fffdf0d9;color:#40543a;font-size:11px;font-weight:700;box-shadow:0 3px 12px #1b30251a;backdrop-filter:blur(8px);pointer-events:none}.night .scene-controls button{background:#233a34e8;color:#e6edda;border-color:#718477}.night .scene-hint{background:#233a34e8;color:#e6edda;border-color:#718477}
 @media(max-width:560px){.scene-controls{top:8px;right:8px;gap:4px}.scene-controls button{height:34px;min-width:34px;padding:0 8px;border-radius:9px}.scene-controls button:first-child span{display:none}.scene-hint{left:8px;bottom:8px;font-size:10px;padding:7px 9px}.three-host{touch-action:pan-y}}
+
+
+/* Bienvenida y tutorial guiado: todo trabaja con datos ficticios locales. */
+.tutorial-backdrop{position:fixed;z-index:50;inset:0;display:grid;place-items:center;padding:18px;background:#15251ddd;backdrop-filter:blur(9px);overflow:auto}
+.tutorial-welcome{width:min(560px,100%);padding:clamp(22px,5vw,38px);border:1px solid #e2e8d8;border-radius:25px;background:#fffdf5;color:#304633;box-shadow:0 28px 100px #0005;text-align:center}
+.tutorial-bee{display:grid;place-items:center;width:66px;height:66px;margin:0 auto 14px;border-radius:22px;background:#fff0c6;font-size:35px}
+.tutorial-eyebrow{margin:0;color:#8e7b42;font-size:10px;font-weight:900;letter-spacing:1.7px}
+.tutorial-welcome h1{margin:10px 0;font-size:clamp(27px,6vw,38px);letter-spacing:-1.2px;line-height:1.1}
+.tutorial-intro{max-width:440px;margin:0 auto;color:#707c6c;font-size:14px;line-height:1.7}
+.tutorial-facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:22px 0}
+.tutorial-facts span{display:flex;flex-direction:column;gap:5px;padding:13px 6px;border:1px solid #e3e9da;border-radius:13px;background:#f7f9f1;color:#75806d;font-size:10px}
+.tutorial-facts strong{color:#365a3c;font-size:23px}
+.tutorial-warning{padding:12px 14px;border:1px solid #efdfb1;border-radius:12px;background:#fff8e5;color:#78632c;font-size:11px;line-height:1.6;text-align:left}
+.tutorial-start{width:100%;margin-top:16px;padding:14px;border:0;border-radius:12px;background:#315a3e;color:#fff;font-weight:800;font-size:14px;box-shadow:0 7px 18px #315a3e28}
+.tutorial-start:hover{background:#244a30}.tutorial-later{margin-top:10px;padding:8px 12px;border:0;background:transparent;color:#7b8576;font-size:12px;font-weight:700}
+.tutorial-banner{position:relative;z-index:5;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:15px;margin:12px clamp(12px,2.2vw,28px) 0;padding:15px 17px;border:1px solid #d8e5cc;border-radius:15px;background:linear-gradient(110deg,#f1f7e9,#fffdf4);box-shadow:0 8px 22px #304b250c}
+.tutorial-step-count{padding:8px 10px;border-radius:9px;background:#dcebd0;color:#41633a;font-size:10px;font-weight:900;white-space:nowrap}
+.tutorial-copy strong{color:#304d34;font-size:13px}.tutorial-copy p{margin:4px 0 0;color:#697765;font-size:12px;line-height:1.55}
+.tutorial-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}.tutorial-actions button{padding:8px 10px;border:1px solid #dbe5d3;border-radius:9px;background:#fff;color:#4d6547;font-size:11px;font-weight:800}.tutorial-actions .tutorial-next{background:#315a3e;color:#fff;border-color:#315a3e}.tutorial-actions .tutorial-skip{border-color:transparent;background:transparent;color:#7e8879}
+.night .tutorial-banner{background:#243634;border-color:#3c5048}.night .tutorial-copy strong{color:#dcebd5}.night .tutorial-copy p{color:#b7c2b1}.night .tutorial-actions button{background:#344745;border-color:#50615c;color:#e5eadf}.night .tutorial-actions .tutorial-next{background:#62845a;color:#fff}
+@media(max-width:760px){.tutorial-banner{grid-template-columns:auto minmax(0,1fr);gap:10px}.tutorial-actions{grid-column:1/-1;justify-content:flex-start}.tutorial-facts span{font-size:9px}.tutorial-facts strong{font-size:20px}}
+@media(max-width:420px){.tutorial-welcome{padding:23px 17px;border-radius:19px}.tutorial-intro{font-size:12px}.tutorial-facts{gap:5px}.tutorial-facts span{padding:10px 3px}.tutorial-warning{text-align:center}}
