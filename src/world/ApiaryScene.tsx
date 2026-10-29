@@ -257,7 +257,7 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
       const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
       label.position.set(0, 1.37, 0.635); group.add(label);
-      scene.add(group); hives.push(group);
+      // Every visible part of the hive is clickable, not only the two wooden boxes.\n      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; pickables.push(object); } });\n      scene.add(group); hives.push(group);
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
