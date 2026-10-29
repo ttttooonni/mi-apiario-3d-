@@ -71,7 +71,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     let frame=0;
     const animate=()=>{frame=requestAnimationFrame(animate);controls.update();hives.forEach(hive=>{
       const body=hive.children.find(child=>child.userData.hiveId===hive.userData.hiveId);
-      if(body instanceof THREE.Mesh){const mat=body.material as THREE.MeshStandardMaterial;mat.emissive.set(hive.userData.hiveId===selectedRef.current?'#5c3b0d':'#000000');mat.emissiveIntensity=hive.userData.hiveId===selectedRef.current?.32:0;}
+      if(body instanceof THREE.Mesh){const mat=body.material as THREE.MeshStandardMaterial;mat.emissive.set(hive.userData.hiveId===selectedRef.current?'#5c3b0d':'#000000');mat.emissiveIntensity=hive.userData.hiveId === selectedRef.current ? 0.32 : 0;}
     });renderer.render(scene,camera);};animate();
     const resize=()=>{camera.aspect=host.clientWidth/host.clientHeight;camera.updateProjectionMatrix();renderer.setSize(host.clientWidth,host.clientHeight);};
     const observer=new ResizeObserver(resize);observer.observe(host);
