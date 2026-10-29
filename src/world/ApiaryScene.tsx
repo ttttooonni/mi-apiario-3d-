@@ -11,11 +11,9 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selectedId);
   const inspectRef = useRef(onFrameInspect);
-  const hiveDataRef = useRef(hiveData);
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
   useEffect(() => { inspectRef.current = onFrameInspect; }, [onFrameInspect]);
-  useEffect(() => { hiveDataRef.current = hiveData; }, [hiveData]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -285,7 +283,9 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
       const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
       label.position.set(0, 1.37, 0.635); group.add(label);
-      // Tag meshes for selection; frame meshes retain their frame index.\n      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; if (typeof object.userData.frameIndex !== 'number') pickables.push(object); } });\n      scene.add(group); hives.push(group);
+      // Tag meshes for selection; frame meshes retain their frame index.
+      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; if (typeof object.userData.frameIndex !== 'number') pickables.push(object); } });
+      scene.add(group); hives.push(group);
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
