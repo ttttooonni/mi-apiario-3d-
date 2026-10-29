@@ -55,7 +55,9 @@ function readState(): { state: DemoState; writable: boolean; message: string } {
     if (typeof parsed === 'object' && parsed !== null && (parsed as DemoState).version === 1 &&
         Array.isArray((parsed as DemoState).hives) && Array.isArray((parsed as DemoState).logs) &&
         Array.isArray((parsed as DemoState).tasks) && Array.isArray((parsed as DemoState).harvests)) {
-      return {state:parsed as DemoState,writable:true,message:''};
+      const validState = parsed as DemoState;
+      // Recalcula colores existentes según el año; conserva explícitamente las reinas sin marcar.
+      return {state:{...validState,hives:validState.hives.map(hive=>({...hive,queen:hive.queen==='Sin marcar'?'Sin marcar':queenColorForYear(hive.queenYear)}))},writable:true,message:''};
     }
     return {state:seedState,writable:false,message:'La copia local de demostración no tiene el formato esperado. Se conserva sin sobrescribir; exporta cualquier copia que necesites antes de reiniciar.'};
   } catch {
