@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean };
 
@@ -22,6 +23,9 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     const camera = new THREE.PerspectiveCamera(46, host.clientWidth / host.clientHeight, 0.1, 180);
     camera.position.set(12.5, 10.5, 15.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    scene.environment = environment.texture;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.shadowMap.enabled = true;
@@ -106,16 +110,19 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     // Small wildflowers add scale and colour without distracting from the hives.
     const flowerMaterials = ['#f6d66f', '#fff3d5', '#d88f9b'].map(color => new THREE.MeshStandardMaterial({ color, roughness: 0.8 }));
     const stemMaterial = new THREE.MeshStandardMaterial({ color: '#4e7843', roughness: 1 });
+    const windFlowers: { group: THREE.Group; phase: number; strength: number }[] = [];
     for (let i = 0; i < 54; i++) {
       const angle = i * 2.399;
       const radius = 3.4 + (i % 9) * 0.72;
       const x = Math.cos(angle) * radius;
       const z = Math.sin(angle) * radius * 0.72;
       if (Math.abs(x) < 2.5 && Math.abs(z) < 4.5) continue;
+      const flower = new THREE.Group();
       const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.025, 0.22, 5), stemMaterial);
-      stem.position.set(x, 0.11, z); scene.add(stem);
+      stem.position.y = 0.11; flower.add(stem);
       const bloom = new THREE.Mesh(new THREE.SphereGeometry(0.075, 7, 6), flowerMaterials[i % flowerMaterials.length]);
-      bloom.scale.set(1, 0.65, 1); bloom.position.set(x, 0.25, z); scene.add(bloom);
+      bloom.scale.set(1, 0.65, 1); bloom.position.y = 0.25; flower.add(bloom);
+      flower.position.set(x, 0, z); scene.add(flower); windFlowers.push({ group: flower, phase: i * 0.8, strength: 0.025 + (i % 4) * 0.009 });
     }
 
     const hives: THREE.Group[] = [];
@@ -132,6 +139,20 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       for (const side of [-1, 1]) { const wing = new THREE.Mesh(new THREE.SphereGeometry(0.045, 7, 5), wingMaterial); wing.scale.set(0.65, 0.22, 1.5); wing.position.set(0, 0.055, side * 0.045); bee.add(wing); }
       scene.add(bee); flightBees.push({ mesh: bee, phase: i * 0.73, radius: 1.2 + (i % 5) * 0.65, speed: 0.55 + (i % 4) * 0.14, height: 0.85 + (i % 4) * 0.32 });
     }
+    // Procedural wood grain: keeps the prototype self-contained without downloading image assets.
+    const woodCanvas = document.createElement('canvas'); woodCanvas.width = 256; woodCanvas.height = 256;
+    const woodCtx = woodCanvas.getContext('2d');
+    if (woodCtx) {
+      const gradient = woodCtx.createLinearGradient(0, 0, 256, 0);
+      gradient.addColorStop(0, '#b98243'); gradient.addColorStop(0.5, '#e1b976'); gradient.addColorStop(1, '#a8753d');
+      woodCtx.fillStyle = gradient; woodCtx.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 90; i++) {
+        const y = (i * 37) % 256; woodCtx.strokeStyle = i % 4 === 0 ? 'rgba(91,53,25,.28)' : 'rgba(255,231,177,.2)';
+        woodCtx.lineWidth = i % 7 === 0 ? 2 : 1; woodCtx.beginPath(); woodCtx.moveTo(0, y);
+        woodCtx.bezierCurveTo(70, y + Math.sin(i) * 4, 160, y - Math.cos(i) * 5, 256, y + Math.sin(i * 0.4) * 3); woodCtx.stroke();
+      }
+    }
+    const woodTexture = new THREE.CanvasTexture(woodCanvas); woodTexture.colorSpace = THREE.SRGBColorSpace; woodTexture.wrapS = THREE.RepeatWrapping; woodTexture.wrapT = THREE.RepeatWrapping; woodTexture.repeat.set(1, 1);
     const hiveColours = ['#dca544', '#e8cf91', '#c9913e', '#e0b95e', '#dfd0a1', '#c58c3d'];
     const trimMaterial = new THREE.MeshStandardMaterial({ color: '#f5e7c6', roughness: 0.75 });
     const roofMaterial = new THREE.MeshStandardMaterial({ color: '#5a4632', roughness: 0.82 });
@@ -154,7 +175,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       const foot = new THREE.Mesh(new THREE.BoxGeometry(1.55, 0.12, 1.42), roofMaterial);
       foot.position.y = 0.47; foot.castShadow = true; group.add(foot);
 
-      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i], roughness: 0.78 });
+      const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i], map: woodTexture, roughness: 0.86 });
       const lower = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.58, 1.22), bodyMaterial);
       lower.position.y = 0.82; lower.castShadow = true; lower.receiveShadow = true;
       lower.userData.hiveId = id; group.add(lower); pickables.push(lower);
@@ -217,7 +238,11 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     renderer.domElement.addEventListener('pointerup', handleClick);
 
     let frame = 0;
+    let disposed = false;
+    let running = false;
     const animate = () => {
+      if (disposed || document.hidden) { running = false; return; }
+      running = true;
       frame = requestAnimationFrame(animate);
       controls.update();
       hives.forEach(hive => {
@@ -233,6 +258,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         });
       });
       const now = performance.now() * 0.001;
+      windFlowers.forEach(flower => { flower.group.rotation.z = Math.sin(now * 1.35 + flower.phase) * flower.strength; });
       flightBees.forEach(bee => {
         const t = now * bee.speed + bee.phase;
         bee.mesh.position.set(Math.cos(t) * (3.2 + bee.radius), bee.height + Math.sin(t * 2.3) * 0.2, Math.sin(t * 0.82) * (2.8 + bee.radius * 0.5));
@@ -240,6 +266,8 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
       });
       renderer.render(scene, camera);
     };
+    const onVisibilityChange = () => { if (document.hidden) { cancelAnimationFrame(frame); running = false; } else if (!running) animate(); };
+    document.addEventListener('visibilitychange', onVisibilityChange);
     animate();
 
     const resize = () => {
@@ -249,7 +277,8 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     };
     const observer = new ResizeObserver(resize); observer.observe(host);
     return () => {
-      cancelAnimationFrame(frame); observer.disconnect();
+      disposed = true; cancelAnimationFrame(frame); observer.disconnect();
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       renderer.domElement.removeEventListener('pointerdown', onDown);
       renderer.domElement.removeEventListener('pointermove', onMove);
       renderer.domElement.removeEventListener('pointerup', handleClick);
@@ -262,6 +291,7 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
         }
       });
       renderer.dispose(); renderer.domElement.remove();
+      environment.texture.dispose(); pmrem.dispose();
     };
   }, [night]);
 
