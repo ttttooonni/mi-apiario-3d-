@@ -16,9 +16,6 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     const host = hostRef.current;
     if (!host) return;
     const scene = new THREE.Scene();
-    const pmrem = new THREE.PMREMGenerator(new THREE.WebGLRenderer({ antialias: false }));
-    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
-    scene.environment = environment.texture;
     const sky = night ? '#172c35' : '#b9dce5';
     scene.background = new THREE.Color(sky);
     scene.fog = new THREE.Fog(sky, 28, 82);
@@ -26,6 +23,9 @@ export default function ApiaryScene({ selectedId, onSelect, night }: Props) {
     const camera = new THREE.PerspectiveCamera(46, host.clientWidth / host.clientHeight, 0.1, 180);
     camera.position.set(12.5, 10.5, 15.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
+    scene.environment = environment.texture;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.shadowMap.enabled = true;
