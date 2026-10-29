@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -14,45 +14,64 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
   const inspectRef = useRef(onFrameInspect);
   const viewActionRef = useRef<(action: ViewAction) => void>(() => {});
   const manualViewRef = useRef(false);
+  const hivesRef = useRef(hiveData);
+  hivesRef.current = hiveData;
+  const nightRef = useRef(night);
+  const applyNightRef = useRef<(night: boolean) => void>(() => {});
+  const applyHivesRef = useRef<(hives: SceneHive[]) => void>(() => {});
+  const [failed, setFailed] = useState(false);
+  const structureKey = hiveData.map(h => h.id).join('|');
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
-  useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { selectedRef.current = selectedId; manualViewRef.current = false; }, [selectedId]);
   useEffect(() => { inspectRef.current = onFrameInspect; }, [onFrameInspect]);
 
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    const night = nightRef.current;
+    const hiveData = hivesRef.current;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    const coarse = window.matchMedia?.('(pointer: coarse)').matches ?? false;
     const scene = new THREE.Scene();
     const sky = night ? '#172c35' : '#b9dce5';
     scene.background = new THREE.Color(sky);
-    scene.fog = new THREE.Fog(sky, 28, 82);
+    const fog = new THREE.Fog(sky, 28, 82);
+    scene.fog = fog;
+    // Materials whose colour depends on day/night are registered so the theme changes without rebuilding the scene.
+    const themed: { material: THREE.MeshStandardMaterial; day: string; night: string }[] = [];
+    const themedMaterial = (day: string, nightColour: string, roughness = 1) => { const material = new THREE.MeshStandardMaterial({ color: night ? nightColour : day, roughness }); themed.push({ material, day, night: nightColour }); return material; };
 
     const camera = new THREE.PerspectiveCamera(46, host.clientWidth / host.clientHeight, 0.1, 180);
     camera.position.set(9.5, 7.2, 10.5);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+    let renderer: THREE.WebGLRenderer;
+    try { renderer = new THREE.WebGLRenderer({ antialias: !coarse, alpha: false, powerPreference: 'high-performance' }); }
+    catch { setFailed(true); return; }
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
     scene.environment = environment.texture;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.7));
     renderer.setSize(host.clientWidth, host.clientHeight);
     renderer.shadowMap.enabled = true;
-    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Soft shadows are expensive on phones; plain PCF keeps the look at a fraction of the cost.
+    renderer.shadowMap.type = coarse ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.15;
     renderer.domElement.setAttribute('aria-label', 'Vista 3D interactiva del apiario de demostración');
     host.appendChild(renderer.domElement);
 
-    scene.add(new THREE.HemisphereLight(night ? 0x91a7c7 : 0xfff8e8, 0x697c4d, night ? 1.45 : 2.15));
+    const hemi = new THREE.HemisphereLight(night ? 0x91a7c7 : 0xfff8e8, 0x697c4d, night ? 1.45 : 2.15);
+    scene.add(hemi);
     const sun = new THREE.DirectionalLight(night ? 0x8bb8ff : 0xffe6b0, night ? 1.45 : 3.1);
     sun.position.set(-9, 18, 10);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
+    sun.shadow.mapSize.set(coarse ? 512 : 1024, coarse ? 512 : 1024);
     sun.shadow.camera.left = -22; sun.shadow.camera.right = 22;
     sun.shadow.camera.top = 22; sun.shadow.camera.bottom = -22;
     sun.shadow.bias = -0.0005;
     scene.add(sun);
 
-    const groundMaterial = new THREE.MeshStandardMaterial({ color: night ? '#405947' : '#91ad65', roughness: 1 });
+    const groundMaterial = themedMaterial('#91ad65', '#405947');
     const terrainGeometry = new THREE.PlaneGeometry(120, 120, 64, 64);
     const terrainPositions = terrainGeometry.attributes.position;
     for (let i = 0; i < terrainPositions.count; i++) {
@@ -65,7 +84,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     ground.rotation.x = -Math.PI / 2; ground.position.y = -0.08; ground.receiveShadow = true; scene.add(ground);
 
     // Natural scattered stones and low scrub make the terrain feel less like a flat board.
-    const stoneMaterial = new THREE.MeshStandardMaterial({ color: night ? '#59675a' : '#a9a28b', roughness: 1 });
+    const stoneMaterial = themedMaterial('#a9a28b', '#59675a');
     const scrubMaterials = ['#496d42', '#63834b', '#81965a'].map(color => new THREE.MeshStandardMaterial({ color, roughness: 1 }));
     for (let i = 0; i < 58; i++) {
       const angle = i * 2.399, radius = 6.5 + (i % 11) * 1.15;
@@ -85,17 +104,17 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     }
 
     // A slightly winding pale-earth path gives the scene a clear visual centre.
-    const pathMaterial = new THREE.MeshStandardMaterial({ color: night ? '#7e826a' : '#c9b48a', roughness: 1 });
+    const pathMaterial = themedMaterial('#c9b48a', '#7e826a');
     const path = new THREE.Mesh(new THREE.PlaneGeometry(3.8, 42), pathMaterial);
     path.rotation.x = -Math.PI / 2; path.position.set(0, -0.035, 0); scene.add(path);
-    const pathEdgeMaterial = new THREE.MeshStandardMaterial({ color: night ? '#526747' : '#789655', roughness: 1 });
+    const pathEdgeMaterial = themedMaterial('#789655', '#526747');
     for (const side of [-1, 1]) {
       const edge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, 42), pathEdgeMaterial);
       edge.position.set(side * 1.98, -0.005, 0); scene.add(edge);
     }
 
     // Distant island-like ridges give the horizon depth without hiding the apiary.
-    const ridgeColors = night ? ['#263f42', '#304b45', '#3c5948'] : ['#91aa83', '#829d73', '#73916a'];
+    const ridgeDay = ['#91aa83', '#829d73', '#73916a'], ridgeNight = ['#263f42', '#304b45', '#3c5948'];
     for (let ridge = 0; ridge < 3; ridge++) {
       const points: THREE.Vector3[] = [];
       for (let p = 0; p <= 18; p++) {
@@ -106,14 +125,14 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       }
       const ridgeMesh = new THREE.Mesh(
         new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 2.8 + ridge * 0.45, 7, false),
-        new THREE.MeshStandardMaterial({ color: ridgeColors[ridge], roughness: 1 })
+        themedMaterial(ridgeDay[ridge], ridgeNight[ridge])
       );
       ridgeMesh.position.y = 0.6 - ridge * 0.3;
       scene.add(ridgeMesh);
     }
 
     // A low, rustic fence marks the apiary edge while leaving the front entrance open.
-    const fenceWood = new THREE.MeshStandardMaterial({ color: night ? '#4c4738' : '#80613e', roughness: 1 });
+    const fenceWood = themedMaterial('#80613e', '#4c4738');
     const addFenceRail = (start: THREE.Vector3, end: THREE.Vector3, height: number) => {
       const midpoint = start.clone().add(end).multiplyScalar(0.5);
       const rail = new THREE.Mesh(new THREE.BoxGeometry(start.distanceTo(end), 0.075, 0.075), fenceWood);
@@ -249,9 +268,11 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const row = Math.floor(i / columns), col = i % columns;
       group.position.set((col - (Math.min(hiveData.length, columns) - 1) / 2) * 3.25, 0, row * 3.9 - ((Math.ceil(hiveData.length / columns) - 1) * 1.95));
       group.userData.hiveId = id;
-      const footprint = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.22, 0.1, 28), new THREE.MeshStandardMaterial({ color: night ? '#39483a' : '#788c54', roughness: 1 }));
+      const footprint = new THREE.Mesh(new THREE.CylinderGeometry(1.12, 1.22, 0.1, 28), themedMaterial('#788c54', '#39483a'));
       footprint.position.y = 0.02; footprint.receiveShadow = true; group.add(footprint);
-      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), new THREE.MeshBasicMaterial({ color: statusColours[hiveRecord.status], transparent: true, opacity: 0.95 }));
+      const markerMaterial = new THREE.MeshBasicMaterial({ color: statusColours[hiveRecord.status], transparent: true, opacity: 0.95 });
+      const marker = new THREE.Mesh(new THREE.TorusGeometry(1.22, 0.045, 8, 48), markerMaterial);
+      marker.userData.notPickable = true; group.userData.markerMaterial = markerMaterial;
       marker.rotation.x = -Math.PI / 2; marker.position.y = 0.095; marker.visible = false; group.add(marker); selectionMarkers.push(marker);
 
       const legs = new THREE.Mesh(new THREE.BoxGeometry(1.25, 0.42, 1.12), standMaterial);
@@ -260,6 +281,7 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       foot.position.y = 0.47; foot.castShadow = true; group.add(foot);
 
       const bodyMaterial = new THREE.MeshStandardMaterial({ color: hiveColours[i % hiveColours.length], map: woodTexture, bumpMap: woodBumpTexture, bumpScale: 0.045, roughness: 0.9 });
+      group.userData.bodyMaterial = bodyMaterial;
       const lower = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.58, 1.22), bodyMaterial);
       lower.position.y = 0.82; lower.castShadow = true; lower.receiveShadow = true;
       lower.userData.hiveId = id; group.add(lower); pickables.push(lower);
@@ -317,7 +339,9 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const lidHinge = new THREE.Group();
       lidHinge.position.set(0, 1.69, -0.66);
       lidHinge.userData.hiveId = id;
-      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), new THREE.MeshStandardMaterial({ color: statusColours[hiveRecord.status], roughness: 0.78 }));
+      const lidMaterial = new THREE.MeshStandardMaterial({ color: statusColours[hiveRecord.status], roughness: 0.78 });
+      group.userData.lidMaterial = lidMaterial;
+      const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), lidMaterial);
       lid.position.set(0, 0, 0.66); lid.castShadow = true; lid.userData.hiveId = id; lidHinge.add(lid);
       const roofTop = new THREE.Mesh(new THREE.BoxGeometry(1.53, 0.06, 1.32), new THREE.MeshStandardMaterial({ color: '#816446', roughness: 0.8 }));
       roofTop.position.set(0, 0.105, 0.66); roofTop.userData.hiveId = id; lidHinge.add(roofTop);
@@ -326,20 +350,25 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       group.userData.frameGroup = frameGroup;
 
       const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 104;
-      const ctx = canvas.getContext('2d');
-      if (ctx) {
-        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 320, 104);
-        ctx.strokeStyle = statusColours[hiveRecord.status]; ctx.lineWidth = 7; ctx.strokeRect(3, 3, 314, 98);
-        ctx.fillStyle = '#46351f'; ctx.font = 'bold 25px sans-serif'; ctx.fillText(hiveRecord.name.slice(0, 18), 12, 35);
-        ctx.fillStyle = queenColours[hiveRecord.queen] ?? '#8a9286'; ctx.beginPath(); ctx.arc(20, 67, 9, 0, Math.PI * 2); ctx.fill();
-        ctx.strokeStyle = '#5d513f'; ctx.lineWidth = 1; ctx.stroke();
-        ctx.fillStyle = '#46351f'; ctx.font = '18px sans-serif'; ctx.fillText(hiveRecord.queen === 'Sin marcar' ? 'Reina sin marcar' : `Reina ${hiveRecord.queen} · ${hiveRecord.queenYear}`, 36, 73);
-      }
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
+      const drawLabel = (record: SceneHive) => {
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, 320, 104);
+        ctx.fillStyle = '#fff8e8'; ctx.fillRect(0, 0, 320, 104);
+        ctx.strokeStyle = statusColours[record.status]; ctx.lineWidth = 7; ctx.strokeRect(3, 3, 314, 98);
+        ctx.fillStyle = '#46351f'; ctx.font = 'bold 25px sans-serif'; ctx.fillText(record.name.slice(0, 18), 12, 35);
+        ctx.fillStyle = queenColours[record.queen] ?? '#8a9286'; ctx.beginPath(); ctx.arc(20, 67, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#5d513f'; ctx.lineWidth = 1; ctx.stroke();
+        ctx.fillStyle = '#46351f'; ctx.font = '18px sans-serif'; ctx.fillText(record.queen === 'Sin marcar' ? 'Reina sin marcar' : `Reina ${record.queen} · ${record.queenYear}`, 36, 73);
+        texture.needsUpdate = true;
+      };
+      drawLabel(hiveRecord);
       const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
+      group.userData.drawLabel = drawLabel; group.userData.labelTexture = texture;
       label.position.set(0, 1.37, 0.635); group.add(label);
       // Tag meshes for selection; frame meshes retain their frame index.
-      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; if (typeof object.userData.frameIndex !== 'number') pickables.push(object); } });
+      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; if (typeof object.userData.frameIndex !== 'number' && !object.userData.notPickable) pickables.push(object); } });
       scene.add(group); hives.push(group);
     }
 
@@ -348,6 +377,27 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
     controls.target.set(0, 0.8, 0); controls.maxPolarAngle = Math.PI / 2.03;
     controls.minDistance = 3.2; controls.maxDistance = 48;
     controls.enablePan = true; controls.panSpeed = 0.8; controls.rotateSpeed = 0.7; controls.zoomSpeed = 0.85;
+    controls.minPolarAngle = 0.05;
+    if (reducedMotion) controls.enableDamping = false;
+    // Any manual rotate/zoom/pan stops the automatic focus animation, so the user is never fought by the camera.
+    const onControlStart = () => { manualViewRef.current = true; };
+    controls.addEventListener('start', onControlStart);
+    applyNightRef.current = (isNight: boolean) => {
+      const skyColour = isNight ? '#172c35' : '#b9dce5';
+      (scene.background as THREE.Color).set(skyColour); fog.color.set(skyColour);
+      hemi.color.set(isNight ? 0x91a7c7 : 0xfff8e8); hemi.intensity = isNight ? 1.45 : 2.15;
+      sun.color.set(isNight ? 0x8bb8ff : 0xffe6b0); sun.intensity = isNight ? 1.45 : 3.1;
+      themed.forEach(item => item.material.color.set(isNight ? item.night : item.day));
+    };
+    applyHivesRef.current = (records: SceneHive[]) => {
+      records.forEach(record => {
+        const group = hives.find(h => h.userData.hiveId === record.id);
+        if (!group) return;
+        (group.userData.lidMaterial as THREE.MeshStandardMaterial).color.set(statusColours[record.status]);
+        (group.userData.markerMaterial as THREE.MeshBasicMaterial).color.set(statusColours[record.status]);
+        (group.userData.drawLabel as (r: SceneHive) => void)(record);
+      });
+    };
     const resetView = () => {
       manualViewRef.current = true;
       const bounds = new THREE.Box3(); hives.forEach(hive => bounds.expandByObject(hive));
@@ -365,9 +415,10 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
         camera.position.copy(controls.target).add(direction); controls.update(); return;
       }
       if (action === 'top') { manualViewRef.current = true; camera.position.set(controls.target.x + 0.1, controls.target.y + 17, controls.target.z + 0.1); controls.update(); return; }
-      const current = hiveData.findIndex(h => h.id === selectedRef.current);
-      const nextIndex = action === 'next' ? (current + 1 + hiveData.length) % hiveData.length : (current - 1 + hiveData.length) % hiveData.length;
-      const nextHive = hiveData[nextIndex]; if (nextHive) { manualViewRef.current = false; selectRef.current(nextHive.id); }
+      const list = hivesRef.current;
+      const current = list.findIndex(h => h.id === selectedRef.current);
+      const nextIndex = action === 'next' ? (current + 1 + list.length) % list.length : (current - 1 + list.length) % list.length;
+      const nextHive = list[nextIndex]; if (nextHive) { manualViewRef.current = false; selectRef.current(nextHive.id); }
     };
     resetView();
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
@@ -380,10 +431,14 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObjects(pickables, false)[0];
+      const isShown = (object: THREE.Object3D | null): boolean => { for (let o = object; o; o = o.parent) if (!o.visible) return false; return true; };
+      const hit = raycaster.intersectObjects(pickables, false).find(item => isShown(item.object));
       const id = hit?.object.userData.hiveId;
       const frameIndex = hit?.object.userData.frameIndex;
-      if (typeof id === 'string' && typeof frameIndex === 'number') { manualViewRef.current = false; selectRef.current(id); inspectRef.current(id, frameIndex); }
+      const hiveGroup = hives.find(h => h.userData.hiveId === id);
+      const lidOpen = ((hiveGroup?.userData.lidHinge as THREE.Group | undefined)?.rotation.x ?? 0) < -0.6;
+      // A frame only counts once its hive is selected and the lid is visibly open; otherwise the click just selects the hive.
+      if (typeof id === 'string' && typeof frameIndex === 'number' && id === selectedRef.current && lidOpen) { manualViewRef.current = false; inspectRef.current(id, frameIndex); }
       else if (typeof id === 'string') { manualViewRef.current = false; selectRef.current(id); }
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
@@ -401,30 +456,27 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       const focusedHive = hives.find(hive => hive.userData.hiveId === selectedRef.current);
       hives.forEach(hive => {
         const hinge = hive.userData.lidHinge as THREE.Group | undefined;
-        if (hinge) { const target = hive.userData.hiveId === selectedRef.current ? -1.02 : 0; hinge.rotation.x += (target - hinge.rotation.x) * 0.075; }
+        if (hinge) { const target = hive.userData.hiveId === selectedRef.current ? -1.02 : 0; hinge.rotation.x = reducedMotion ? target : hinge.rotation.x + (target - hinge.rotation.x) * 0.075; }
       });
       if (!manualViewRef.current) {
         const focusPoint = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0)) : new THREE.Vector3(0, 0.75, 0);
         const cameraDestination = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4)) : new THREE.Vector3(12.5, 10.5, 15.5);
-        controls.target.lerp(focusPoint, 0.035);
-        camera.position.lerp(cameraDestination, 0.025);
+        controls.target.lerp(focusPoint, reducedMotion ? 1 : 0.035);
+        camera.position.lerp(cameraDestination, reducedMotion ? 1 : 0.025);
+        if (camera.position.distanceTo(cameraDestination) < 0.05) manualViewRef.current = true;
       }
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
         const marker = selectionMarkers[hives.indexOf(hive)];
         if (marker) { marker.visible = selected; marker.scale.setScalar(1 + Math.sin(performance.now() * 0.003) * 0.035); }
-        hive.children.forEach(child => {
-          if (child instanceof THREE.Mesh && child.userData.hiveId === hive.userData.hiveId) {
-            const material = child.material as THREE.MeshStandardMaterial;
-            material.emissive.set(selected ? '#6d4b13' : '#000000');
-            material.emissiveIntensity = selected ? 0.22 : 0;
-          }
-        });
+        // Only the hive's own body material glows; shared materials (stand, trims, metal) are left alone so other hives do not flicker.
+        const body = hive.userData.bodyMaterial as THREE.MeshStandardMaterial;
+        body.emissive.set(selected ? '#6d4b13' : '#000000'); body.emissiveIntensity = selected ? 0.22 : 0;
       });
       const now = performance.now() * 0.001;
-      windFlowers.forEach(flower => { flower.group.rotation.z = Math.sin(now * 1.35 + flower.phase) * flower.strength; });
-      flightBees.forEach(bee => {
+      if (!reducedMotion) windFlowers.forEach(flower => { flower.group.rotation.z = Math.sin(now * 1.35 + flower.phase) * flower.strength; });
+      if (!reducedMotion) flightBees.forEach(bee => {
         const t = now * bee.speed + bee.phase;
         bee.mesh.position.set(Math.cos(t) * (3.2 + bee.radius), bee.height + Math.sin(t * 2.3) * 0.2, Math.sin(t * 0.82) * (2.8 + bee.radius * 0.5));
         bee.mesh.rotation.y = -Math.atan2(Math.cos(t * 0.82) * 0.82, -Math.sin(t));
@@ -447,7 +499,10 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       renderer.domElement.removeEventListener('pointerdown', onDown);
       renderer.domElement.removeEventListener('pointermove', onMove);
       renderer.domElement.removeEventListener('pointerup', handleClick);
+      controls.removeEventListener('start', onControlStart);
       controls.dispose();
+      applyNightRef.current = () => {}; applyHivesRef.current = () => {};
+      hives.forEach(h => (h.userData.labelTexture as THREE.Texture).dispose());
       scene.traverse(object => {
         if (object instanceof THREE.Mesh) {
           object.geometry.dispose();
@@ -459,16 +514,22 @@ export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, nigh
       renderer.dispose(); renderer.domElement.remove();
       woodTexture.dispose(); woodBumpTexture.dispose(); environment.texture.dispose(); pmrem.dispose();
     };
-  }, [night, hiveData.map(h => `${h.id}:${h.name}`).join('|')]);
+    // Only adding/removing hives changes the layout and needs a rebuild.
+  }, [structureKey]);
+
+  useEffect(() => { nightRef.current = night; applyNightRef.current(night); }, [night]);
+  useEffect(() => { applyHivesRef.current(hiveData); }, [hiveData]);
+
+  if (failed) return <div className="three-host scene-loading" role="status">Este navegador no puede mostrar la escena 3D (WebGL no disponible). Puedes usar el cuaderno y las fichas con normalidad.</div>;
 
   return <div className="three-host" ref={hostRef} aria-label="Escena 3D interactiva del apiario de demostración">
     <div className="scene-controls" aria-label="Controles de cámara">
-      <button type="button" onClick={() => viewActionRef.current('reset')} title="Ver todo el apiario">⌂ <span>Vista general</span></button>
-      <button type="button" onClick={() => viewActionRef.current('zoomIn')} title="Acercar">＋</button>
-      <button type="button" onClick={() => viewActionRef.current('zoomOut')} title="Alejar">−</button>
-      <button type="button" onClick={() => viewActionRef.current('top')} title="Vista desde arriba">▦</button>
-      <button type="button" onClick={() => viewActionRef.current('previous')} title="Colmena anterior">‹</button>
-      <button type="button" onClick={() => viewActionRef.current('next')} title="Colmena siguiente">›</button>
+      <button type="button" onClick={() => viewActionRef.current('reset')} title="Ver todo el apiario" aria-label="Vista general del apiario">⌂ <span>Vista general</span></button>
+      <button type="button" onClick={() => viewActionRef.current('zoomIn')} title="Acercar" aria-label="Acercar">＋</button>
+      <button type="button" onClick={() => viewActionRef.current('zoomOut')} title="Alejar" aria-label="Alejar">−</button>
+      <button type="button" onClick={() => viewActionRef.current('top')} title="Vista desde arriba" aria-label="Vista desde arriba">▦</button>
+      <button type="button" onClick={() => viewActionRef.current('previous')} title="Colmena anterior" aria-label="Colmena anterior">‹</button>
+      <button type="button" onClick={() => viewActionRef.current('next')} title="Colmena siguiente" aria-label="Colmena siguiente">›</button>
     </div>
     <div className="scene-hint">Arrastra para girar · pellizca para zoom · toca una colmena</div>
   </div>;
