@@ -4,14 +4,19 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 
 type SceneHive = { id: string; name: string; kind: 'Colmena' | 'Núcleo'; status: 'Activa' | 'Revisar' | 'Atención'; queen: string; queenYear: number };
-type Props = { selectedId: string; onSelect: (id: string) => void; night: boolean; hives: SceneHive[] };
+type ViewAction = 'reset' | 'zoomIn' | 'zoomOut' | 'top' | 'previous' | 'next';
+type Props = { selectedId: string; onSelect: (id: string) => void; onFrameInspect: (id: string, frameIndex: number) => void; night: boolean; hives: SceneHive[] };
 
-export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveData }: Props) {
+export default function ApiaryScene({ selectedId, onSelect, onFrameInspect, night, hives: hiveData }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const selectRef = useRef(onSelect);
   const selectedRef = useRef(selectedId);
+  const inspectRef = useRef(onFrameInspect);
+  const viewActionRef = useRef<(action: ViewAction) => void>(() => {});
+  const manualViewRef = useRef(false);
   useEffect(() => { selectRef.current = onSelect; }, [onSelect]);
   useEffect(() => { selectedRef.current = selectedId; }, [selectedId]);
+  useEffect(() => { inspectRef.current = onFrameInspect; }, [onFrameInspect]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -22,7 +27,7 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
     scene.fog = new THREE.Fog(sky, 28, 82);
 
     const camera = new THREE.PerspectiveCamera(46, host.clientWidth / host.clientHeight, 0.1, 180);
-    camera.position.set(12.5, 10.5, 15.5);
+    camera.position.set(9.5, 7.2, 10.5);
     const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     const pmrem = new THREE.PMREMGenerator(renderer);
     const environment = pmrem.fromScene(new RoomEnvironment(), 0.04);
@@ -88,6 +93,58 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       const edge = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.035, 42), pathEdgeMaterial);
       edge.position.set(side * 1.98, -0.005, 0); scene.add(edge);
     }
+
+    // Distant island-like ridges give the horizon depth without hiding the apiary.
+    const ridgeColors = night ? ['#263f42', '#304b45', '#3c5948'] : ['#91aa83', '#829d73', '#73916a'];
+    for (let ridge = 0; ridge < 3; ridge++) {
+      const points: THREE.Vector3[] = [];
+      for (let p = 0; p <= 18; p++) {
+        const x = -34 + p * 3.8;
+        const z = -34 - ridge * 4 + Math.sin(p * 0.72 + ridge) * (2.2 + ridge * 0.7);
+        const y = -0.2 + Math.sin(p * 0.55 + ridge * 1.7) * (1.1 + ridge * 0.45);
+        points.push(new THREE.Vector3(x, y, z));
+      }
+      const ridgeMesh = new THREE.Mesh(
+        new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points), 64, 2.8 + ridge * 0.45, 7, false),
+        new THREE.MeshStandardMaterial({ color: ridgeColors[ridge], roughness: 1 })
+      );
+      ridgeMesh.position.y = 0.6 - ridge * 0.3;
+      scene.add(ridgeMesh);
+    }
+
+    // A low, rustic fence marks the apiary edge while leaving the front entrance open.
+    const fenceWood = new THREE.MeshStandardMaterial({ color: night ? '#4c4738' : '#80613e', roughness: 1 });
+    const addFenceRail = (start: THREE.Vector3, end: THREE.Vector3, height: number) => {
+      const midpoint = start.clone().add(end).multiplyScalar(0.5);
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(start.distanceTo(end), 0.075, 0.075), fenceWood);
+      rail.position.set(midpoint.x, height, midpoint.z);
+      const direction = end.clone().sub(start).normalize();
+      rail.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), direction);
+      rail.castShadow = true;
+      scene.add(rail);
+    };
+    for (let z = -8; z <= 8; z += 2.6) {
+      for (const x of [-8, 8]) {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+        post.position.set(x, 0.46, z); post.castShadow = true; scene.add(post);
+      }
+    }
+    for (let x = -8; x < 8; x += 2.6) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+      post.position.set(x, 0.46, -8); post.castShadow = true; scene.add(post);
+      if (Math.abs(x) > 2.7) {
+        const frontPost = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.95, 0.13), fenceWood);
+        frontPost.position.set(x, 0.46, 8); frontPost.castShadow = true; scene.add(frontPost);
+      }
+    }
+    addFenceRail(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(8, 0, -8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, -8), new THREE.Vector3(-8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(8, 0, -8), new THREE.Vector3(8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(-2.7, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(2.7, 0, 8), new THREE.Vector3(8, 0, 8), 0.55);
+    addFenceRail(new THREE.Vector3(-8, 0, -7.6), new THREE.Vector3(8, 0, -7.6), 0.92);
+    addFenceRail(new THREE.Vector3(-8, 0, 8), new THREE.Vector3(-2.7, 0, 8), 0.92);
+    addFenceRail(new THREE.Vector3(2.7, 0, 8), new THREE.Vector3(8, 0, 8), 0.92);
 
     // Soft rolling hills and a distant tree line frame the apiary.
     for (let i = 0; i < 10; i++) {
@@ -239,10 +296,34 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
         const beeDot = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), new THREE.MeshStandardMaterial({ color: '#2f2920' }));
         beeDot.position.set(-0.14 + bee * 0.14, 0.66 + (bee % 2) * 0.05, 0.67); group.add(beeDot);
       }
+      // Interior frames and hinged lid: the selected hive opens without rebuilding the scene.
+      const frameGroup = new THREE.Group();
+      frameGroup.userData.hiveId = id;
+      for (let frameIndex = 0; frameIndex < 9; frameIndex++) {
+        const frame = new THREE.Group();
+        frame.userData.hiveId = id;
+        frame.userData.frameIndex = frameIndex + 1;
+        const frameWood = new THREE.Mesh(new THREE.BoxGeometry(0.085, 0.48, 0.78), new THREE.MeshStandardMaterial({ color: '#d6ad68', roughness: 0.88 }));
+        frameWood.castShadow = true;
+        frame.add(frameWood);
+        const comb = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.39, 0.68), new THREE.MeshStandardMaterial({ color: frameIndex % 3 === 0 ? '#b77b35' : '#e5bf64', roughness: 0.95 }));
+        comb.position.x = 0.047;
+        frame.add(comb);
+        frame.position.set((frameIndex - 4) * 0.115, 1.53, 0);
+        frameGroup.add(frame);
+        frame.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; object.userData.frameIndex = frameIndex + 1; pickables.push(object); } });
+      }
+      group.add(frameGroup);
+      const lidHinge = new THREE.Group();
+      lidHinge.position.set(0, 1.69, -0.66);
+      lidHinge.userData.hiveId = id;
       const lid = new THREE.Mesh(new THREE.BoxGeometry(1.68, 0.15, 1.46), new THREE.MeshStandardMaterial({ color: statusColours[hiveRecord.status], roughness: 0.78 }));
-      lid.position.y = 1.67; lid.castShadow = true; group.add(lid);
+      lid.position.set(0, 0, 0.66); lid.castShadow = true; lid.userData.hiveId = id; lidHinge.add(lid);
       const roofTop = new THREE.Mesh(new THREE.BoxGeometry(1.53, 0.06, 1.32), new THREE.MeshStandardMaterial({ color: '#816446', roughness: 0.8 }));
-      roofTop.position.y = 1.775; group.add(roofTop);
+      roofTop.position.set(0, 0.105, 0.66); roofTop.userData.hiveId = id; lidHinge.add(roofTop);
+      group.add(lidHinge);
+      group.userData.lidHinge = lidHinge;
+      group.userData.frameGroup = frameGroup;
 
       const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 104;
       const ctx = canvas.getContext('2d');
@@ -257,13 +338,38 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace;
       const label = new THREE.Mesh(new THREE.PlaneGeometry(1.65, 0.54), new THREE.MeshBasicMaterial({ map: texture, side: THREE.DoubleSide }));
       label.position.set(0, 1.37, 0.635); group.add(label);
-      // Every visible part of the hive is clickable, not only the two wooden boxes.\n      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; pickables.push(object); } });\n      scene.add(group); hives.push(group);
+      // Tag meshes for selection; frame meshes retain their frame index.
+      group.traverse(object => { if ((object as THREE.Mesh).isMesh) { object.userData.hiveId = id; if (typeof object.userData.frameIndex !== 'number') pickables.push(object); } });
+      scene.add(group); hives.push(group);
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true; controls.dampingFactor = 0.06;
-    controls.target.set(0, 0.75, 0); controls.maxPolarAngle = Math.PI / 2.03;
-    controls.minDistance = 5.5; controls.maxDistance = 38;
+    controls.target.set(0, 0.8, 0); controls.maxPolarAngle = Math.PI / 2.03;
+    controls.minDistance = 3.2; controls.maxDistance = 48;
+    controls.enablePan = true; controls.panSpeed = 0.8; controls.rotateSpeed = 0.7; controls.zoomSpeed = 0.85;
+    const resetView = () => {
+      manualViewRef.current = true;
+      const bounds = new THREE.Box3(); hives.forEach(hive => bounds.expandByObject(hive));
+      const center = bounds.isEmpty() ? new THREE.Vector3(0, 0.8, 0) : bounds.getCenter(new THREE.Vector3());
+      const size = bounds.isEmpty() ? new THREE.Vector3(8, 3, 10) : bounds.getSize(new THREE.Vector3());
+      const distance = Math.max(9, Math.max(size.x, size.z) * 1.15);
+      controls.target.copy(center); camera.position.set(center.x + distance * 0.62, center.y + distance * 0.52, center.z + distance * 0.78); controls.update();
+    };
+    viewActionRef.current = (action: ViewAction) => {
+      if (action === 'reset') { resetView(); return; }
+      if (action === 'zoomIn' || action === 'zoomOut') {
+        manualViewRef.current = true;
+        const direction = camera.position.clone().sub(controls.target); direction.multiplyScalar(action === 'zoomIn' ? 0.82 : 1.22);
+        const distance = THREE.MathUtils.clamp(direction.length(), controls.minDistance, controls.maxDistance); direction.setLength(distance);
+        camera.position.copy(controls.target).add(direction); controls.update(); return;
+      }
+      if (action === 'top') { manualViewRef.current = true; camera.position.set(controls.target.x + 0.1, controls.target.y + 17, controls.target.z + 0.1); controls.update(); return; }
+      const current = hiveData.findIndex(h => h.id === selectedRef.current);
+      const nextIndex = action === 'next' ? (current + 1 + hiveData.length) % hiveData.length : (current - 1 + hiveData.length) % hiveData.length;
+      const nextHive = hiveData[nextIndex]; if (nextHive) { manualViewRef.current = false; selectRef.current(nextHive.id); }
+    };
+    resetView();
     const raycaster = new THREE.Raycaster(), pointer = new THREE.Vector2();
     let downX = 0, downY = 0, dragged = false;
     const onDown = (event: PointerEvent) => { downX = event.clientX; downY = event.clientY; dragged = false; };
@@ -276,7 +382,9 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       raycaster.setFromCamera(pointer, camera);
       const hit = raycaster.intersectObjects(pickables, false)[0];
       const id = hit?.object.userData.hiveId;
-      if (typeof id === 'string') selectRef.current(id);
+      const frameIndex = hit?.object.userData.frameIndex;
+      if (typeof id === 'string' && typeof frameIndex === 'number') { manualViewRef.current = false; selectRef.current(id); inspectRef.current(id, frameIndex); }
+      else if (typeof id === 'string') { manualViewRef.current = false; selectRef.current(id); }
     };
     renderer.domElement.addEventListener('pointerdown', onDown);
     renderer.domElement.addEventListener('pointermove', onMove);
@@ -291,14 +399,16 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
       frame = requestAnimationFrame(animate);
       // Smoothly bring the selected hive into focus, like a lightweight simulation game.
       const focusedHive = hives.find(hive => hive.userData.hiveId === selectedRef.current);
-      const focusPoint = focusedHive
-        ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0))
-        : new THREE.Vector3(0, 0.75, 0);
-      const cameraDestination = focusedHive
-        ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4))
-        : new THREE.Vector3(12.5, 10.5, 15.5);
-      controls.target.lerp(focusPoint, 0.035);
-      camera.position.lerp(cameraDestination, 0.025);
+      hives.forEach(hive => {
+        const hinge = hive.userData.lidHinge as THREE.Group | undefined;
+        if (hinge) { const target = hive.userData.hiveId === selectedRef.current ? -1.02 : 0; hinge.rotation.x += (target - hinge.rotation.x) * 0.075; }
+      });
+      if (!manualViewRef.current) {
+        const focusPoint = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(0, 0.92, 0)) : new THREE.Vector3(0, 0.75, 0);
+        const cameraDestination = focusedHive ? focusedHive.position.clone().add(new THREE.Vector3(3.2, 4.4, 6.4)) : new THREE.Vector3(12.5, 10.5, 15.5);
+        controls.target.lerp(focusPoint, 0.035);
+        camera.position.lerp(cameraDestination, 0.025);
+      }
       controls.update();
       hives.forEach(hive => {
         const selected = hive.userData.hiveId === selectedRef.current;
@@ -345,10 +455,21 @@ export default function ApiaryScene({ selectedId, onSelect, night, hives: hiveDa
           if (Array.isArray(material)) material.forEach(item => item.dispose()); else material.dispose();
         }
       });
+      viewActionRef.current = () => {};
       renderer.dispose(); renderer.domElement.remove();
       woodTexture.dispose(); woodBumpTexture.dispose(); environment.texture.dispose(); pmrem.dispose();
     };
-  }, [night, hiveData.map(h => `${h.id}:${h.name}:${h.status}:${h.queen}:${h.queenYear}`).join('|')]);
+  }, [night, hiveData.map(h => `${h.id}:${h.name}`).join('|')]);
 
-  return <div className="three-host" ref={hostRef} role="img" aria-label="Escena 3D de un apiario de demostración. Selecciona una colmena para ver su ficha." />;
+  return <div className="three-host" ref={hostRef} aria-label="Escena 3D interactiva del apiario de demostración">
+    <div className="scene-controls" aria-label="Controles de cámara">
+      <button type="button" onClick={() => viewActionRef.current('reset')} title="Ver todo el apiario">⌂ <span>Vista general</span></button>
+      <button type="button" onClick={() => viewActionRef.current('zoomIn')} title="Acercar">＋</button>
+      <button type="button" onClick={() => viewActionRef.current('zoomOut')} title="Alejar">−</button>
+      <button type="button" onClick={() => viewActionRef.current('top')} title="Vista desde arriba">▦</button>
+      <button type="button" onClick={() => viewActionRef.current('previous')} title="Colmena anterior">‹</button>
+      <button type="button" onClick={() => viewActionRef.current('next')} title="Colmena siguiente">›</button>
+    </div>
+    <div className="scene-hint">Arrastra para girar · pellizca para zoom · toca una colmena</div>
+  </div>;
 }

@@ -83,6 +83,8 @@ export default function App() {
   const [bulkTaskPriority, setBulkTaskPriority] = useState<Task['priority']>('Normal');
   const [night, setNight] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(() => { try { return window.localStorage.getItem('mi-apiario-3d.tutorial.started') !== '1'; } catch { return true; } });
+  const [tutorialStep, setTutorialStep] = useState(-1);
   const [showHiveModal, setShowHiveModal] = useState(false);
   const [tab, setTab] = useState<Tab>('Resumen');
   const [query, setQuery] = useState('');
@@ -121,6 +123,7 @@ export default function App() {
     const entry: LogEntry = {id:makeId('LOG'),hiveId:selected.id,date:logDate,kind:logKind,detail:logDetail.trim()};
     setData(prev=>({...prev,logs:[entry,...prev.logs],hives:prev.hives.map(h=>h.id===selected.id?{...h,lastReview:logKind==='Revisión'?logDate:h.lastReview}:h)}));
     setLogDetail(''); setTab('Revisiones');
+    if (tutorialStep === 2) setTutorialStep(3);
   };
   const addTask = (event: React.FormEvent) => {
     event.preventDefault(); if (!selected || !taskTitle.trim()) return;
@@ -161,15 +164,28 @@ export default function App() {
     <header className="topbar">
       <div className="brand-mark" aria-hidden="true">🐝</div>
       <div className="brand"><strong>Mi Apiario <span>3D</span></strong><small>El cuaderno apícola dentro de tu apiario</small></div>
-      <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>setShowHelp(v=>!v)} aria-expanded={showHelp}>ⓘ Ayuda</button></div>
+      <div className="header-actions"><span className="offline-pill">● Modo demostración</span><button onClick={()=>setNight(v=>!v)}>{night?'☀️ Día':'🌙 Noche'}</button><button onClick={()=>{setShowHelp(v=>!v);setTutorialStep(0);setTab('Resumen')}} aria-expanded={showHelp}>ⓘ Tutorial</button></div>
     </header>
+    {tutorialStep >= 0 && <section className="tutorial-banner" aria-live="polite">
+      <div className="tutorial-step-count">PASO {tutorialStep + 1} DE 4</div>
+      <div className="tutorial-copy"><strong>{['Explora el apiario 3D','Abre la colmena e inspecciona un cuadro','Registra lo que has observado','Crea tu primera tarea'][tutorialStep]}</strong><p>{['Arrastra la escena para girar. Usa + y − para acercar o alejar, ⌂ para ver todo el apiario y ▦ para mirar desde arriba. Después, toca una colmena.','Al tocar una colmena, la tapa se abre. Toca uno de los cuadros visibles del interior para inspeccionarlo. La app creará un registro de práctica y te llevará al cuaderno.','Verás una observación de ejemplo ya escrita. Léela, añade lo que quieras practicar en el campo Observaciones y pulsa «Guardar registro de demostración». El paso siguiente se activará al guardar.','Abre Tareas, escribe algo concreto —por ejemplo, «Comprobar reservas»—, elige colmena, fecha y prioridad, y pulsa «Crear tarea». Es una tarea ficticia de práctica.'][tutorialStep]}</p></div>
+      <div className="tutorial-actions">{tutorialStep > 0 && <button type="button" onClick={()=>{const next=tutorialStep-1;setTutorialStep(next);setTab(next===2?'Resumen':'Resumen')}}>Anterior</button>}<button type="button" className="tutorial-next" onClick={()=>{if(tutorialStep===3){setTutorialStep(-1);setTab('Tareas')}else{const next=tutorialStep+1;setTutorialStep(next);if(next===2)setTab('Revisiones');if(next===3)setTab('Tareas')}}}>{tutorialStep===3?'Ir a tareas':'Siguiente →'}</button><button type="button" className="tutorial-skip" onClick={()=>setTutorialStep(-1)}>Salir</button></div>
+    </section>}
+    {showWelcome && <div className="tutorial-backdrop"><section className="tutorial-welcome" role="dialog" aria-modal="true" aria-labelledby="tutorial-title">
+      <div className="tutorial-bee">🐝</div><p className="tutorial-eyebrow">MI APIARIO 3D · MODO APRENDIZAJE</p><h1 id="tutorial-title">Tu apiario, paso a paso</h1>
+      <p className="tutorial-intro">Empieza con un apiario de ejemplo ya preparado: 10 colmenas, fichas de reina, registros, tareas pendientes y lotes de miel. No necesitas introducir datos para comenzar.</p>
+      <div className="tutorial-facts"><span><strong>10</strong> colmenas ficticias</span><span><strong>3</strong> registros de ejemplo</span><span><strong>3</strong> tareas para practicar</span></div>
+      <div className="tutorial-warning">Todo es demostrativo. Los datos se guardan únicamente en este navegador y no afectan a tu Mi Apiario real.</div>
+      <button type="button" className="tutorial-start" onClick={()=>{setShowWelcome(false);setTutorialStep(0);setTab('Resumen');try{window.localStorage.setItem('mi-apiario-3d.tutorial.started','1')}catch{}}}>Empezar con datos de ejemplo →</button>
+      <button type="button" className="tutorial-later" onClick={()=>{setShowWelcome(false);try{window.localStorage.setItem('mi-apiario-3d.tutorial.started','1')}catch{}}}>Entrar directamente</button>
+    </section></div>}
     {showHelp && <div className="help-banner"><strong>Prototipo funcional:</strong> puedes crear fichas, registrar revisiones, sanidad, alimentación, tareas y producción. Todo se guarda localmente en este navegador bajo una clave exclusiva de demostración. No se conecta a Mi Apiario real.</div>}
     {storageWarning && <div className="storage-warning" role="alert">{storageWarning} <button type="button" onClick={exportBackup} disabled={!canSave}>Exportar copia validada</button></div>}
     <nav className="app-tabs" aria-label="Secciones del cuaderno">{tabs.map(item=><button key={item} className={tab===item?'active':''} onClick={()=>setTab(item)}>{item}</button>)}<button className="backup-tab" onClick={exportBackup} disabled={!canSave} title={!canSave?'No disponible: almacenamiento no validado':'Exportar copia validada'}>⇩ Copia JSON</button></nav>
 
     {tab==='Resumen' && <>
       <section className="workspace">
-        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={id=>{setSelectedId(id);setShowHiveModal(true)}} night={night} hives={data.hives.map(({id,name,kind,status,queen,queenYear})=>({id,name,kind,status,queen,queenYear}))}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
+        <div className="scene-panel"><div className="scene-label"><span className="live-dot" /> APIARIO EN 3D <span>· {data.hives.length} fichas de prueba</span></div><ApiaryScene selectedId={selected?.id ?? ''} onSelect={id=>{setSelectedId(id);if(tutorialStep===0){setShowHiveModal(false);setTutorialStep(1)}else{setShowHiveModal(true)}}} onFrameInspect={(hiveId,frameIndex)=>{const date=today();const entry:LogEntry={id:makeId('LOG'),hiveId,date,kind:'Revisión',detail:`Inspección visual del cuadro ${frameIndex} desde la escena 3D (dato de demostración).`};setData(prev=>({...prev,logs:[entry,...prev.logs],hives:prev.hives.map(h=>h.id===hiveId?{...h,lastReview:date}:h)}));setSelectedId(hiveId);if(tutorialStep===1){setShowHiveModal(false);setTutorialStep(2);setTab('Revisiones');setLogKind('Revisión');setLogDetail(`Práctica del tutorial: observación del cuadro ${frameIndex}. Añade aquí qué has observado.`)}else{setShowHiveModal(true)}} night={night} hives={data.hives.map(({id,name,kind,status,queen,queenYear})=>({id,name,kind,status,queen,queenYear}))}/><div className="scene-footer"><span>↔ Arrastra para mirar alrededor</span><span>Selecciona una colmena</span></div></div>
         {selected && <aside className="side-panel">
           <div className="panel-heading"><div><small>FICHA SELECCIONADA</small><h1>{selected.name}</h1></div><span className="hive-emoji">▦</span></div>
           <div className="id-chip">{selected.id}</div>
